@@ -1,0 +1,16 @@
+# WARP data directory (contains registration and config)
+data/
+
+# Environment files (may contain WARP_LICENSE_KEY)
+.env
+.env.*
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Build artifacts
+*.tar.gz

@@ -1,0 +1,26 @@
+name: Build and Push
+on:
+  push:
+    paths:
+      - 'Dockerfile'
+      - 'entrypoint.sh'
+      - 'healthcheck/**'
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  docker:
+    permissions:
+      contents: write
+      packages: write
+      actions: write
+    uses: dubloksoftware/workflows/.github/workflows/build-and-push.yml@main
+    with:
+      image_name: cloudflare-warp
+      platforms: 'linux/amd64,linux/arm64'
+      context_path: '.'
+      dockerfile_path: 'Dockerfile'
+    secrets:
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+      DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}

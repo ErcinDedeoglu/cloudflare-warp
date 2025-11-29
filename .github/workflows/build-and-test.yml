@@ -1,0 +1,218 @@
+# Copyright (c) 2025 Ercin Dedeoglu
+# Licensed under CC BY-NC 4.0 (Attribution-NonCommercial)
+# https://github.com/ErcinDedeoglu/cloudflare-warp-docker
+
+name: Build and Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: cloudflare-warp-test
+  GOST_VERSION: "3.2.4"
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: ${{ env.IMAGE_NAME }}:latest
+          build-args: |
+            GOST_VERSION=${{ env.GOST_VERSION }}
+            COMMIT_SHA=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify image was built
+        run: |
+          docker images | grep ${{ env.IMAGE_NAME }}
+          echo "✅ Image built successfully"
+
+      - name: Run container
+        run: |
+          docker run -d \
+            --name warp-test \
+            --cap-add NET_ADMIN \
+            --cap-add MKNOD \
+            --cap-add AUDIT_WRITE \
+            --device-cgroup-rule='c 10:200 rwm' \
+            --sysctl net.ipv6.conf.all.disable_ipv6=0 \
+            --sysctl net.ipv4.conf.all.src_valid_mark=1 \
+            -e WARP_SLEEP=5 \
+            -p 1080:1080 \
+            ${{ env.IMAGE_NAME }}:latest
+          
+          echo "✅ Container started"
+
+      - name: Wait for WARP to initialize
+        run: |
+          echo "⏳ Waiting for WARP to initialize..."
+          sleep 15
+
+      - name: Check container is running
+        run: |
+          if [ "$(docker inspect -f '{{.State.Running}}' warp-test)" != "true" ]; then
+            echo "❌ Container is not running"
+            docker logs warp-test
+            exit 1
+          fi
+          echo "✅ Container is running"
+
+      - name: Check container logs
+        run: |
+          echo "📋 Container logs:"
+          docker logs warp-test
+
+      - name: Test WARP connection status
+        run: |
+          echo "🔍 Checking WARP connection status..."
+          
+          # Check warp-cli status inside container - must be connected
+          STATUS=$(docker exec warp-test warp-cli --accept-tos status)
+          echo "$STATUS"
+          
+          if echo "$STATUS" | grep -q "Connected"; then
+            echo "✅ WARP is connected"
+          else
+            echo "❌ WARP is not connected"
+            docker logs warp-test
+            exit 1
+          fi
+          
+          # Check warp-cli settings
+          echo "📋 WARP settings:"
+          docker exec warp-test warp-cli --accept-tos settings
+
+      - name: Test SOCKS5 proxy is listening
+        run: |
+          echo "🔍 Checking if SOCKS5 proxy is listening on port 1080..."
+          
+          # Wait a bit more for gost to start
+          sleep 5
+          
+          # Check if port 1080 is open
+          if nc -z localhost 1080; then
+            echo "✅ SOCKS5 proxy is listening on port 1080"
+          else
+            echo "❌ SOCKS5 proxy is not listening"
+            docker logs warp-test
+            exit 1
+          fi
+
+      - name: Test proxy connectivity
+        run: |
+          echo "🔍 Testing proxy connectivity..."
+          
+          # Test basic connectivity through proxy - must succeed
+          if curl -x socks5h://localhost:1080 -s --max-time 30 https://cloudflare.com/cdn-cgi/trace; then
+            echo ""
+            echo "✅ Proxy connectivity test passed"
+          else
+            echo "❌ Proxy connectivity test failed"
+            docker logs warp-test
+            exit 1
+          fi
+
+      - name: Test WARP trace (check if connected to WARP)
+        run: |
+          echo "🔍 Checking if traffic is going through WARP..."
+          
+          TRACE=$(curl -x socks5h://localhost:1080 -s --max-time 30 https://cloudflare.com/cdn-cgi/trace)
+          
+          if [ -z "$TRACE" ]; then
+            echo "❌ Failed to get trace from Cloudflare"
+            docker logs warp-test
+            exit 1
+          fi
+          
+          echo "Trace output:"
+          echo "$TRACE"
+          
+          if echo "$TRACE" | grep -qE "warp=(plus|on)"; then
+            echo "✅ Traffic is routed through WARP!"
+          else
+            echo "❌ WARP connection not established - warp flag is not 'on' or 'plus'"
+            docker logs warp-test
+            exit 1
+          fi
+
+      - name: Test IP is different through WARP
+        run: |
+          echo "🔍 Verifying IP address changes through WARP..."
+          
+          # Get real IP (without proxy)
+          REAL_IP=$(curl -s --max-time 15 https://ifconfig.me || curl -s --max-time 15 https://api.ipify.org)
+          echo "Real IP: $REAL_IP"
+          
+          if [ -z "$REAL_IP" ]; then
+            echo "❌ Failed to get real IP"
+            exit 1
+          fi
+          
+          # Get IP through WARP proxy
+          WARP_IP=$(curl -x socks5h://localhost:1080 -s --max-time 30 https://ifconfig.me || curl -x socks5h://localhost:1080 -s --max-time 30 https://api.ipify.org)
+          echo "WARP IP: $WARP_IP"
+          
+          if [ -z "$WARP_IP" ]; then
+            echo "❌ Failed to get WARP IP"
+            docker logs warp-test
+            exit 1
+          fi
+          
+          # Verify IPs are different
+          if [ "$REAL_IP" != "$WARP_IP" ]; then
+            echo "✅ IP addresses are different - WARP is masking your real IP!"
+          else
+            echo "❌ IP addresses are the same - WARP is not working properly"
+            docker logs warp-test
+            exit 1
+          fi
+
+      - name: Run healthcheck script
+        run: |
+          echo "🔍 Running internal healthcheck..."
+          if docker exec warp-test /healthcheck/index.sh; then
+            echo "✅ Healthcheck passed"
+          else
+            echo "❌ Healthcheck failed"
+            docker logs warp-test
+            exit 1
+          fi
+
+      - name: Test container restart
+        run: |
+          echo "🔄 Testing container restart..."
+          docker restart warp-test
+          sleep 15
+          
+          if [ "$(docker inspect -f '{{.State.Running}}' warp-test)" = "true" ]; then
+            echo "✅ Container restarted successfully"
+          else
+            echo "❌ Container failed to restart"
+            docker logs warp-test
+            exit 1
+          fi
+
+      - name: Cleanup
+        if: always()
+        run: |
+          echo "🧹 Cleaning up..."
+          docker stop warp-test || true
+          docker rm warp-test || true
+          echo "✅ Cleanup complete"
