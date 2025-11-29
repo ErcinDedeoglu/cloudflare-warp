@@ -264342,13 +264342,13 @@
         "WARP_VERSION": "2025.9.558.0",
         "org.opencontainers.image.authors": "Ercin Dedeoglu <e.dedeoglu@gmail.com>",
         "org.opencontainers.image.description": "Docker container for Cloudflare WARP client with GOST proxy support",
-        "org.opencontainers.image.documentation": "https://github.com/ErcinDedeoglu/cloudflare-warp-docker#readme",
+        "org.opencontainers.image.documentation": "https://github.com/ErcinDedeoglu/cloudflare-warp#readme",
         "org.opencontainers.image.licenses": "CC-BY-NC-4.0",
         "org.opencontainers.image.ref.name": "ubuntu",
         "org.opencontainers.image.revision": "",
-        "org.opencontainers.image.source": "https://github.com/ErcinDedeoglu/cloudflare-warp-docker",
+        "org.opencontainers.image.source": "https://github.com/ErcinDedeoglu/cloudflare-warp",
         "org.opencontainers.image.title": "cloudflare-warp",
-        "org.opencontainers.image.url": "https://github.com/ErcinDedeoglu/cloudflare-warp-docker",
+        "org.opencontainers.image.url": "https://github.com/ErcinDedeoglu/cloudflare-warp",
         "org.opencontainers.image.vendor": "Ercin Dedeoglu",
         "org.opencontainers.image.version": "v1.0.0"
       }

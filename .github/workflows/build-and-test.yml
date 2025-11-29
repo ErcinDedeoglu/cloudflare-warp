@@ -1,6 +1,6 @@
 # Copyright (c) 2025 Ercin Dedeoglu
 # Licensed under CC BY-NC 4.0 (Attribution-NonCommercial)
-# https://github.com/ErcinDedeoglu/cloudflare-warp-docker
+# https://github.com/ErcinDedeoglu/cloudflare-warp
 
 name: Build and Test
 

@@ -2,7 +2,7 @@
 
 # Copyright (c) 2025 Ercin Dedeoglu
 # Licensed under CC BY-NC 4.0 (Attribution-NonCommercial)
-# https://github.com/ErcinDedeoglu/cloudflare-warp-docker
+# https://github.com/ErcinDedeoglu/cloudflare-warp
 #
 # Local development test script
 # Run this before committing to ensure everything works
@@ -77,7 +77,7 @@ spinner() {
 # Print header
 echo -e "${BLUE}"
 echo "╔════════════════════════════════════════════════════════════╗"
-echo "║         Cloudflare WARP Docker - Local Test Suite          ║"
+echo "║           Cloudflare WARP - Local Test Suite               ║"
 echo "╚════════════════════════════════════════════════════════════╝"
 echo -e "${NC}"
 

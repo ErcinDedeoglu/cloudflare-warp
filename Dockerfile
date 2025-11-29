@@ -7,12 +7,12 @@ ARG GOST_VERSION=3.2.6
 ARG COMMIT_SHA
 ARG TARGETPLATFORM
 
-LABEL org.opencontainers.image.title="Cloudflare WARP Docker"
+LABEL org.opencontainers.image.title="Cloudflare WARP"
 LABEL org.opencontainers.image.description="Docker container for Cloudflare WARP client with GOST proxy support"
 LABEL org.opencontainers.image.authors="Ercin Dedeoglu <e.dedeoglu@gmail.com>"
-LABEL org.opencontainers.image.url="https://github.com/ErcinDedeoglu/cloudflare-warp-docker"
-LABEL org.opencontainers.image.source="https://github.com/ErcinDedeoglu/cloudflare-warp-docker"
-LABEL org.opencontainers.image.documentation="https://github.com/ErcinDedeoglu/cloudflare-warp-docker#readme"
+LABEL org.opencontainers.image.url="https://github.com/ErcinDedeoglu/cloudflare-warp"
+LABEL org.opencontainers.image.source="https://github.com/ErcinDedeoglu/cloudflare-warp"
+LABEL org.opencontainers.image.documentation="https://github.com/ErcinDedeoglu/cloudflare-warp#readme"
 LABEL org.opencontainers.image.vendor="Ercin Dedeoglu"
 LABEL org.opencontainers.image.licenses="CC-BY-NC-4.0"
 LABEL org.opencontainers.image.revision=${COMMIT_SHA}

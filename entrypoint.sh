@@ -2,7 +2,7 @@
 
 # Copyright (c) 2025 Ercin Dedeoglu
 # Licensed under CC BY-NC 4.0 (Attribution-NonCommercial)
-# https://github.com/ErcinDedeoglu/cloudflare-warp-docker
+# https://github.com/ErcinDedeoglu/cloudflare-warp
 #
 # Commercial use is prohibited. For personal/educational use,
 # you must provide public attribution to this project.
