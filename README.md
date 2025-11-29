@@ -2,7 +2,7 @@
 
 [![Build and Test](https://github.com/ErcinDedeoglu/cloudflare-warp-docker/actions/workflows/build-and-test.yml/badge.svg)](https://github.com/ErcinDedeoglu/cloudflare-warp-docker/actions/workflows/build-and-test.yml)
 [![Docker Pulls](https://img.shields.io/docker/pulls/dublok/cloudflare-warp)](https://hub.docker.com/r/dublok/cloudflare-warp)
-[![GitHub](https://img.shields.io/github/license/ErcinDedeoglu/cloudflare-warp-docker)](https://github.com/ErcinDedeoglu/cloudflare-warp-docker/blob/main/LICENSE)
+[![GitHub](https://img.shields.io/github/license/ErcinDedeoglu/cloudflare-warp-docker)](https://github.com/ErcinDedeoglu/cloudflare-warp-docker/blob/v1.0/LICENSE)
 
 Run the official [Cloudflare WARP](https://1.1.1.1/) client in Docker. This container provides a SOCKS5/HTTP proxy that routes your traffic through Cloudflare's network, hiding your real IP address.
 
