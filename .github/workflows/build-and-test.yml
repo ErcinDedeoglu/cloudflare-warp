@@ -13,7 +13,6 @@ on:
 
 env:
   IMAGE_NAME: cloudflare-warp-test
-  GOST_VERSION: "3.2.4"
 
 jobs:
   build-and-test:
@@ -34,7 +33,6 @@ jobs:
           load: true
           tags: ${{ env.IMAGE_NAME }}:latest
           build-args: |
-            GOST_VERSION=${{ env.GOST_VERSION }}
             COMMIT_SHA=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

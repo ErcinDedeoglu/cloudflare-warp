@@ -22,7 +22,6 @@ NC='\033[0m' # No Color
 # Configuration
 IMAGE_NAME="cloudflare-warp-test"
 CONTAINER_NAME="warp-test"
-GOST_VERSION="3.2.4"
 WARP_SLEEP=5
 INIT_WAIT=15
 PROXY_PORT=1080
@@ -86,7 +85,6 @@ echo -e "${NC}"
 echo -e "\n${YELLOW}[1/8] Building Docker image...${NC}"
 BUILD_LOG=$(mktemp)
 docker build \
-    --build-arg GOST_VERSION="$GOST_VERSION" \
     --build-arg COMMIT_SHA="local-test" \
     -t "$IMAGE_NAME:latest" . > "$BUILD_LOG" 2>&1 &
 BUILD_PID=$!
