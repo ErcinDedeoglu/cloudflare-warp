@@ -7,8 +7,16 @@ ARG GOST_VERSION
 ARG COMMIT_SHA
 ARG TARGETPLATFORM
 
+LABEL org.opencontainers.image.title="Cloudflare WARP Docker"
+LABEL org.opencontainers.image.description="Docker container for Cloudflare WARP client with GOST proxy support"
 LABEL org.opencontainers.image.authors="Ercin Dedeoglu <e.dedeoglu@gmail.com>"
 LABEL org.opencontainers.image.url="https://github.com/ErcinDedeoglu/cloudflare-warp-docker"
+LABEL org.opencontainers.image.source="https://github.com/ErcinDedeoglu/cloudflare-warp-docker"
+LABEL org.opencontainers.image.documentation="https://github.com/ErcinDedeoglu/cloudflare-warp-docker#readme"
+LABEL org.opencontainers.image.vendor="Ercin Dedeoglu"
+LABEL org.opencontainers.image.licenses="CC-BY-NC-4.0"
+LABEL org.opencontainers.image.revision=${COMMIT_SHA}
+LABEL org.opencontainers.image.version=${WARP_VERSION}
 LABEL WARP_VERSION=${WARP_VERSION}
 LABEL GOST_VERSION=${GOST_VERSION}
 LABEL COMMIT_SHA=${COMMIT_SHA}
@@ -18,11 +26,11 @@ COPY ./healthcheck /healthcheck
 
 # install dependencies
 RUN case ${TARGETPLATFORM} in \
-      "linux/amd64")   export ARCH="amd64" ;; \
-      "linux/arm64")   export ARCH="armv8" ;; \
+      "linux/amd64")   ARCH="amd64" ;; \
+      "linux/arm64")   ARCH="arm64" ;; \
       *) echo "Unsupported TARGETPLATFORM: ${TARGETPLATFORM}" && exit 1 ;; \
     esac && \
-    echo "Building for ${TARGETPLATFORM} with GOST ${GOST_VERSION}" &&\
+    echo "Building for ${TARGETPLATFORM} with GOST ${GOST_VERSION} (ARCH=${ARCH})" && \
     apt-get update && \
     apt-get upgrade -y && \
     apt-get install -y --no-install-recommends ca-certificates curl gnupg lsb-release sudo jq ipcalc dbus && \
@@ -34,12 +42,9 @@ RUN case ${TARGETPLATFORM} in \
     apt-get autoremove -y && \
     rm -rf /var/lib/apt/lists/* && \
     # Download GOST from go-gost/gost (v3 - actively maintained)
-    if [ "${TARGETPLATFORM}" = "linux/arm64" ]; then \
-      ARCH="arm64"; \
-    fi && \
     FILE_NAME="gost_${GOST_VERSION}_linux_${ARCH}.tar.gz" && \
     echo "Downloading GOST ${GOST_VERSION} (${FILE_NAME})" && \
-    curl -LO https://github.com/go-gost/gost/releases/download/v${GOST_VERSION}/${FILE_NAME} && \
+    curl -fLO "https://github.com/go-gost/gost/releases/download/v${GOST_VERSION}/${FILE_NAME}" && \
     tar -xzf ${FILE_NAME} -C /usr/bin/ gost && \
     rm -f ${FILE_NAME} && \
     chmod +x /usr/bin/gost && \
