@@ -22,8 +22,6 @@ services:
       - 'c 10:200 rwm'
     ports:
       - "1080:1080"
-    environment:
-      - WARP_SLEEP=5
     cap_add:
       - MKNOD
       - AUDIT_WRITE
@@ -64,7 +62,7 @@ curl -x http://127.0.0.1:1080 https://example.com
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `WARP_SLEEP` | Seconds to wait for WARP daemon to start | `2` |
+| `WARP_CONNECT_TIMEOUT` | Maximum seconds to wait for WARP daemon connection (uses smart retry, exits early when ready) | `30` |
 | `WARP_LICENSE_KEY` | WARP+ license key (optional, runtime only) | - |
 | `GOST_ARGS` | Custom GOST proxy arguments | `-L :1080` |
 | `PROXY_USER` | Username for proxy authentication (optional) | - |

@@ -60,7 +60,7 @@ RUN mkdir -p /home/warp/.local/share/warp && \
     echo -n 'yes' > /home/warp/.local/share/warp/accepted-tos.txt
 
 ENV GOST_ARGS="-L :1080"
-ENV WARP_SLEEP=2
+ENV WARP_CONNECT_TIMEOUT=30
 ENV REGISTER_WHEN_MDM_EXISTS=
 ENV BETA_FIX_HOST_CONNECTIVITY=
 ENV WARP_ENABLE_NAT=

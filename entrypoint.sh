@@ -28,8 +28,24 @@ sudo dbus-daemon --config-file=/usr/share/dbus-1/system.conf
 # start the daemon
 sudo warp-svc --accept-tos &
 
-# sleep to wait for the daemon to start, default 2 seconds
-sleep "$WARP_SLEEP"
+# wait for the daemon to be ready (smart retry with configurable timeout)
+MAX_WAIT=${WARP_CONNECT_TIMEOUT:-30}
+INTERVAL=2
+ELAPSED=0
+
+echo "Waiting for WARP daemon to be ready (max ${MAX_WAIT}s)..."
+while [ $ELAPSED -lt $MAX_WAIT ]; do
+    if warp-cli status 2>/dev/null | grep -qE "(Status|Connected)"; then
+        echo "WARP daemon is ready after ${ELAPSED}s"
+        break
+    fi
+    sleep $INTERVAL
+    ELAPSED=$((ELAPSED + INTERVAL))
+done
+
+if [ $ELAPSED -ge $MAX_WAIT ]; then
+    echo "Warning: WARP daemon may not be fully ready after ${MAX_WAIT}s, continuing anyway..."
+fi
 
 # if /var/lib/cloudflare-warp/reg.json not exists, setup new warp client
 if [ ! -f /var/lib/cloudflare-warp/reg.json ]; then
@@ -63,8 +79,18 @@ if [ -n "$WARP_ENABLE_NAT" ]; then
     warp-cli --accept-tos mode warp
     warp-cli --accept-tos connect
 
-    # wait another seconds for the daemon to reconfigure
-    sleep "$WARP_SLEEP"
+    # wait for the daemon to reconfigure (smart retry)
+    echo "[NAT] Waiting for WARP to reconfigure..."
+    NAT_WAIT=0
+    NAT_TIMEOUT=${WARP_CONNECT_TIMEOUT:-30}
+    while [ $NAT_WAIT -lt $NAT_TIMEOUT ]; do
+        if warp-cli status 2>/dev/null | grep -q "Connected"; then
+            echo "[NAT] WARP reconfigured after ${NAT_WAIT}s"
+            break
+        fi
+        sleep 2
+        NAT_WAIT=$((NAT_WAIT + 2))
+    done
 
     # enable NAT
     echo "[NAT] Enabling NAT..."

@@ -9,7 +9,7 @@ services:
     ports:
       - "1080:1080"
     environment:
-      - WARP_SLEEP=2
+      # - WARP_CONNECT_TIMEOUT=30 # max seconds to wait for WARP connection (smart retry)
       # - WARP_LICENSE_KEY= # optional
       # - WARP_ENABLE_NAT=1 # enable nat
       # - PROXY_USER=myuser # optional proxy authentication
@@ -34,4 +34,7 @@ services:
       # - net.ipv6.conf.all.forwarding=1
       # - net.ipv6.conf.all.accept_ra=2
     volumes:
-      - ./data:/var/lib/cloudflare-warp
+      - warp-data:/var/lib/cloudflare-warp
+
+volumes:
+  warp-data:
