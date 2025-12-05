@@ -14,6 +14,12 @@ services:
       # - WARP_ENABLE_NAT=1 # enable nat
       # - PROXY_USER=myuser # optional proxy authentication
       # - PROXY_PASS=mypassword # optional proxy authentication
+      # - PROXY_MAX_CONN=10 # max concurrent connections per IP
+      # - PROXY_MAX_RPS=10 # max requests per second per IP
+      # - PROXY_ALLOWED_IPS=192.168.1.0/24,10.0.0.0/8 # IP whitelist (most secure)
+      # - PROXY_AUTH_FAIL_LIMIT=5 # ban after this many failed auth attempts
+      # - PROXY_AUTH_BAN_TIME=300 # ban duration in seconds after failed auth
+      # - PROXY_AUTH_FAIL_WINDOW=60 # time window to count failures
     cap_add:
       # Docker already have them, these are for podman users
       - MKNOD

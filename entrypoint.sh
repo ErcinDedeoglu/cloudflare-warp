@@ -83,12 +83,113 @@ if [ -n "$WARP_ENABLE_NAT" ]; then
     sudo nft add rule ip6 mangle forward tcp flags syn tcp option maxseg size set rt mtu
 fi
 
-# Build GOST arguments with optional authentication
+# Auth failure tracking configuration
+# Default: Ban for 300 seconds (5 min) after 5 failed auth attempts
+AUTH_FAIL_LIMIT=${PROXY_AUTH_FAIL_LIMIT:-5}
+AUTH_BAN_TIME=${PROXY_AUTH_BAN_TIME:-300}
+AUTH_FAIL_WINDOW=${PROXY_AUTH_FAIL_WINDOW:-60}
+AUTH_FAIL_STORE="/tmp/auth_failures"
+
+# Auth failure monitor function - runs in background
+# Parses GOST debug logs and bans IPs after too many auth failures
+auth_failure_monitor() {
+    mkdir -p "$AUTH_FAIL_STORE"
+    
+    while read -r line; do
+        # GOST v3 logs auth failures in these formats:
+        # 1. UserPassResponse "1 1" (version=1, status=1=failure) at INFO level
+        # 2. "auth failure" or "ErrAuthFailure" at error level
+        # 3. JSON format with "1 1" in msg field
+        # The log line includes "remote" field with client IP
+        if echo "$line" | grep -qE '("1 1"|auth.*fail|ErrAuthFailure|"status":1)'; then
+            # Extract IP address from log line (handles both plain and JSON format)
+            # Look for "remote":"IP:port" or just IP in the line
+            IP=$(echo "$line" | grep -oE '([0-9]{1,3}\.){3}[0-9]{1,3}' | head -1)
+            
+            if [ -n "$IP" ]; then
+                # Check if IP is already banned
+                if sudo iptables -C INPUT -s "$IP" -p tcp --dport 1080 -j DROP 2>/dev/null; then
+                    continue
+                fi
+                
+                # Track failure with timestamp
+                FAIL_FILE="${AUTH_FAIL_STORE}/${IP}"
+                NOW=$(date +%s)
+                
+                # Add current failure
+                echo "$NOW" >> "$FAIL_FILE"
+                
+                # Remove old entries (outside the window)
+                WINDOW_START=$((NOW - AUTH_FAIL_WINDOW))
+                if [ -f "$FAIL_FILE" ]; then
+                    awk -v ws="$WINDOW_START" '$1 >= ws' "$FAIL_FILE" > "${FAIL_FILE}.tmp" && mv "${FAIL_FILE}.tmp" "$FAIL_FILE"
+                fi
+                
+                # Count recent failures
+                FAIL_COUNT=$(wc -l < "$FAIL_FILE" 2>/dev/null || echo 0)
+                
+                echo "[AUTH] Failed auth from $IP (${FAIL_COUNT}/${AUTH_FAIL_LIMIT} in ${AUTH_FAIL_WINDOW}s window)"
+                
+                # Ban if exceeded limit
+                if [ "$FAIL_COUNT" -ge "$AUTH_FAIL_LIMIT" ]; then
+                    echo "[AUTH] BANNING $IP for ${AUTH_BAN_TIME}s (${FAIL_COUNT} failed attempts)"
+                    sudo iptables -I INPUT -s "$IP" -p tcp --dport 1080 -j DROP
+                    
+                    # Schedule unban
+                    (
+                        sleep "$AUTH_BAN_TIME"
+                        sudo iptables -D INPUT -s "$IP" -p tcp --dport 1080 -j DROP 2>/dev/null
+                        rm -f "$FAIL_FILE"
+                        echo "[AUTH] UNBANNED $IP after ${AUTH_BAN_TIME}s"
+                    ) &
+                    
+                    # Clear failure counter
+                    rm -f "$FAIL_FILE"
+                fi
+            fi
+        fi
+    done
+}
+
 if [ -n "$PROXY_USER" ] && [ -n "$PROXY_PASS" ]; then
-    # Use authentication - construct the listener with credentials
-    GOST_ARGS="-L socks5://${PROXY_USER}:${PROXY_PASS}@:1080"
+    echo "Auth failure protection enabled: Ban for ${AUTH_BAN_TIME}s after ${AUTH_FAIL_LIMIT} failures in ${AUTH_FAIL_WINDOW}s"
+fi
+
+# Build GOST arguments with optional authentication and rate limiting
+GOST_LISTEN=":1080"
+GOST_OPTS=""
+
+# Add authentication if both user and password are provided
+if [ -n "$PROXY_USER" ] && [ -n "$PROXY_PASS" ]; then
+    GOST_LISTEN="${PROXY_USER}:${PROXY_PASS}@:1080"
     echo "Proxy authentication enabled for user: ${PROXY_USER}"
 fi
 
+# Add GOST-level rate limiting options
+# climiter: max concurrent connections per IP (default: 10)
+# rlimiter: max requests per second per IP (default: 10)
+CLIMITER=${PROXY_MAX_CONN:-10}
+RLIMITER=${PROXY_MAX_RPS:-10}
+GOST_OPTS="climiter=${CLIMITER}&rlimiter=${RLIMITER}"
+echo "GOST rate limiting: max ${CLIMITER} concurrent connections, ${RLIMITER} requests/sec per IP"
+
+# Add IP whitelist if provided (admission control)
+# Format: comma-separated IPs or CIDRs, e.g., "192.168.1.0/24,10.0.0.0/8"
+if [ -n "$PROXY_ALLOWED_IPS" ]; then
+    # Use ~ prefix for whitelist mode in GOST
+    GOST_OPTS="${GOST_OPTS}&admission=~${PROXY_ALLOWED_IPS}"
+    echo "IP whitelist enabled: only allowing connections from ${PROXY_ALLOWED_IPS}"
+fi
+
+# Construct final GOST_ARGS
+GOST_ARGS="-L socks5://${GOST_LISTEN}?${GOST_OPTS}"
+
 # start the proxy
-gost $GOST_ARGS
+# If auth is enabled, run with debug logging and monitor for auth failures
+if [ -n "$PROXY_USER" ] && [ -n "$PROXY_PASS" ]; then
+    echo "Starting GOST with authentication failure monitoring..."
+    # Run GOST with debug logging, tee output to both console and auth monitor
+    gost $GOST_ARGS -D 2>&1 | tee >(auth_failure_monitor)
+else
+    gost $GOST_ARGS
+fi

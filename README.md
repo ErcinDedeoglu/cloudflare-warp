@@ -63,12 +63,18 @@ curl -x http://127.0.0.1:1080 https://example.com
 ## Environment Variables
 
 | Variable | Description | Default |
-|----------|-------------|---------||
+|----------|-------------|---------|
 | `WARP_SLEEP` | Seconds to wait for WARP daemon to start | `2` |
 | `WARP_LICENSE_KEY` | WARP+ license key (optional, runtime only) | - |
 | `GOST_ARGS` | Custom GOST proxy arguments | `-L :1080` |
 | `PROXY_USER` | Username for proxy authentication (optional) | - |
 | `PROXY_PASS` | Password for proxy authentication (optional) | - |
+| `PROXY_ALLOWED_IPS` | IP whitelist - only these IPs/CIDRs can connect (optional) | - |
+| `PROXY_AUTH_FAIL_LIMIT` | Failed auth attempts before ban | `5` |
+| `PROXY_AUTH_BAN_TIME` | Ban duration in seconds after failed auth | `300` (5 min) |
+| `PROXY_AUTH_FAIL_WINDOW` | Time window to count failures in seconds | `60` |
+| `PROXY_MAX_CONN` | Max concurrent connections per IP | `10` |
+| `PROXY_MAX_RPS` | Max requests per second per IP | `10` |
 
 ### Using WARP+ License Key
 
@@ -110,6 +116,76 @@ curl -x http://myuser:mysecretpassword@127.0.0.1:1080 https://example.com
 ```
 
 **Note:** If only one of `PROXY_USER` or `PROXY_PASS` is set, authentication will be disabled and the proxy will run without credentials.
+
+### IP Whitelist (Recommended for Private Use)
+
+For maximum security, restrict access to specific IP addresses or networks using `PROXY_ALLOWED_IPS`. Only connections from these IPs will be accepted - all others are immediately rejected before authentication.
+
+```yaml
+services:
+  warp:
+    environment:
+      - PROXY_ALLOWED_IPS=192.168.1.0/24,10.0.0.0/8
+```
+
+Supported formats:
+- Single IP: `192.168.1.100`
+- CIDR range: `192.168.1.0/24`
+- Multiple (comma-separated): `192.168.1.0/24,10.0.0.0/8,172.16.0.0/12`
+
+**This is the most effective protection against brute-force attacks** - unauthorized IPs cannot even attempt authentication.
+
+### Authentication Failure Tracking (Fail2Ban-Style)
+
+When authentication is enabled, the container monitors GOST logs and **automatically bans IPs** that have too many failed authentication attempts:
+
+- **`PROXY_AUTH_FAIL_LIMIT`**: Max failed attempts before ban (default: 5)
+- **`PROXY_AUTH_BAN_TIME`**: Ban duration in seconds (default: 300 = 5 minutes)
+- **`PROXY_AUTH_FAIL_WINDOW`**: Time window to count failures (default: 60 seconds)
+
+```yaml
+services:
+  warp:
+    environment:
+      - PROXY_USER=myuser
+      - PROXY_PASS=mysecretpassword
+      - PROXY_AUTH_FAIL_LIMIT=3    # Ban after 3 failed attempts
+      - PROXY_AUTH_BAN_TIME=600    # Ban for 10 minutes
+      - PROXY_AUTH_FAIL_WINDOW=120 # Count failures within 2 minute window
+```
+
+**How it works:**
+1. GOST logs authentication events at INFO level
+2. A background monitor parses GOST's stdout for SOCKS5 authentication failures
+3. When GOST detects invalid credentials, it logs the UserPassResponse (status=1 indicates failure)
+4. Each failed attempt from an IP is tracked with a timestamp
+5. If an IP exceeds `PROXY_AUTH_FAIL_LIMIT` failures within `PROXY_AUTH_FAIL_WINDOW` → **banned**
+6. Banned IPs are blocked at the kernel level (iptables) for `PROXY_AUTH_BAN_TIME` seconds
+7. After the ban expires, the IP is automatically unbanned
+
+**Technical details:**
+- GOST SOCKS5 handler logs `UserPassResponse` on auth failure (source: go-gost/x handler/socks/v5/selector.go)
+- The monitor detects patterns like `"1 1"` (SOCKS5 version=1, status=1=Failure), `ErrAuthFailure`, etc.
+- Client IPs are extracted from the `remote` field in GOST's log output
+
+**This is true authentication failure tracking** - it detects and counts actual failed login attempts (wrong username/password), not just connection attempts.
+
+### Rate Limiting
+
+The proxy includes built-in rate limiting per IP address:
+
+- **`PROXY_MAX_CONN`**: Maximum concurrent connections per IP (default: 10)
+- **`PROXY_MAX_RPS`**: Maximum requests per second per IP (default: 10)
+
+```yaml
+services:
+  warp:
+    environment:
+      - PROXY_MAX_CONN=5    # Only 5 concurrent connections per IP
+      - PROXY_MAX_RPS=5     # Only 5 requests/sec per IP
+```
+
+**Note:** These limits apply to established connections and proxy requests. For brute-force protection, the auth failure tracking (above) automatically bans IPs with failed login attempts.
 
 ## Troubleshooting
 

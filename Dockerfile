@@ -33,7 +33,7 @@ RUN case ${TARGETPLATFORM} in \
     echo "Building for ${TARGETPLATFORM} with GOST ${GOST_VERSION} (ARCH=${ARCH})" && \
     apt-get update && \
     apt-get upgrade -y && \
-    apt-get install -y --no-install-recommends ca-certificates curl gnupg lsb-release sudo jq ipcalc dbus && \
+    apt-get install -y --no-install-recommends ca-certificates curl gnupg lsb-release sudo jq ipcalc dbus iptables && \
     curl https://pkg.cloudflareclient.com/pubkey.gpg | gpg --yes --dearmor --output /usr/share/keyrings/cloudflare-warp-archive-keyring.gpg && \
     echo "deb [signed-by=/usr/share/keyrings/cloudflare-warp-archive-keyring.gpg] https://pkg.cloudflareclient.com/ $(lsb_release -cs) main" | tee /etc/apt/sources.list.d/cloudflare-client.list && \
     apt-get update && \
@@ -66,6 +66,12 @@ ENV BETA_FIX_HOST_CONNECTIVITY=
 ENV WARP_ENABLE_NAT=
 ENV PROXY_USER=
 ENV PROXY_PASS=
+ENV PROXY_MAX_CONN=10
+ENV PROXY_MAX_RPS=10
+ENV PROXY_ALLOWED_IPS=
+ENV PROXY_AUTH_FAIL_LIMIT=5
+ENV PROXY_AUTH_BAN_TIME=300
+ENV PROXY_AUTH_FAIL_WINDOW=60
 
 # NOTE: WARP_LICENSE_KEY should be provided at runtime via:
 #   docker run -e WARP_LICENSE_KEY=your-key ...
