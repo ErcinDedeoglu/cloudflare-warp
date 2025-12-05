@@ -181,6 +181,34 @@ if [ -n "$PROXY_USER" ] && [ -n "$PROXY_PASS" ]; then
     echo "Auth failure protection enabled: Ban for ${AUTH_BAN_TIME}s after ${AUTH_FAIL_LIMIT} failures in ${AUTH_FAIL_WINDOW}s"
 fi
 
+# Remove restrictive iptables rules to allow external proxy access (default behavior)
+# Some environments (Docker with NET_ADMIN, warp-svc) may add DROP rules
+# to the raw PREROUTING chain that block external access to the proxy
+# Set RESTRICT_EXTERNAL_PROXY=1 to keep these rules and only allow local/Docker network access
+if [ -z "$RESTRICT_EXTERNAL_PROXY" ]; then
+    echo "[EXTERNAL] Removing restrictive firewall rules to allow external proxy access..."
+    # Remove any DROP rules in raw PREROUTING that target port 1080
+    # These rules block external traffic before NAT can process it
+    while sudo iptables -t raw -D PREROUTING -p tcp --dport 1080 -j DROP 2>/dev/null; do
+        echo "[EXTERNAL] Removed a DROP rule from raw PREROUTING"
+    done
+    # Also try to remove rules with interface conditions
+    for iface in $(ip -o link show | awk -F': ' '{print $2}' | grep -E '^br-'); do
+        sudo iptables -t raw -D PREROUTING -p tcp ! -i "$iface" --dport 1080 -j DROP 2>/dev/null && \
+            echo "[EXTERNAL] Removed DROP rule for interface $iface"
+    done
+    # Remove nftables rules if nft is available
+    if command -v nft &> /dev/null; then
+        # List and remove any drop rules targeting port 1080 in raw table
+        sudo nft list table ip raw 2>/dev/null | grep -q "tcp dport 1080.*drop" && \
+            sudo nft flush chain ip raw PREROUTING 2>/dev/null && \
+            echo "[EXTERNAL] Flushed nftables raw PREROUTING chain"
+    fi
+    echo "[EXTERNAL] External proxy access enabled"
+else
+    echo "[EXTERNAL] RESTRICT_EXTERNAL_PROXY is set - keeping firewall rules (local/Docker network access only)"
+fi
+
 # Build GOST arguments with optional authentication and rate limiting
 GOST_LISTEN=":1080"
 GOST_OPTS=""

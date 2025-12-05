@@ -65,6 +65,7 @@ curl -x http://127.0.0.1:1080 https://example.com
 | `WARP_CONNECT_TIMEOUT` | Maximum seconds to wait for WARP daemon connection (uses smart retry, exits early when ready) | `30` |
 | `WARP_LICENSE_KEY` | WARP+ license key (optional, runtime only) | - |
 | `GOST_ARGS` | Custom GOST proxy arguments | `-L :1080` |
+| `RESTRICT_EXTERNAL_PROXY` | Block external access, only allow local/Docker network connections | - |
 | `PROXY_USER` | Username for proxy authentication (optional) | - |
 | `PROXY_PASS` | Password for proxy authentication (optional) | - |
 | `PROXY_ALLOWED_IPS` | IP whitelist - only these IPs/CIDRs can connect (optional) | - |
@@ -186,6 +187,20 @@ services:
 **Note:** These limits apply to established connections and proxy requests. For brute-force protection, the auth failure tracking (above) automatically bans IPs with failed login attempts.
 
 ## Troubleshooting
+
+### Restricting to local/Docker network only
+
+By default, the proxy allows external access. To restrict access to only local and Docker network connections, set `RESTRICT_EXTERNAL_PROXY=1`:
+
+```yaml
+services:
+  warp:
+    environment:
+      - RESTRICT_EXTERNAL_PROXY=1
+      # ... other settings ...
+```
+
+This keeps the DROP rules in the `raw PREROUTING` chain that block external traffic.
 
 ### Proxy timeout from host
 
