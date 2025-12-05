@@ -12,6 +12,8 @@ services:
       - WARP_SLEEP=2
       # - WARP_LICENSE_KEY= # optional
       # - WARP_ENABLE_NAT=1 # enable nat
+      # - PROXY_USER=myuser # optional proxy authentication
+      # - PROXY_PASS=mypassword # optional proxy authentication
     cap_add:
       # Docker already have them, these are for podman users
       - MKNOD

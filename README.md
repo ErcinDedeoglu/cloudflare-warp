@@ -63,10 +63,12 @@ curl -x http://127.0.0.1:1080 https://example.com
 ## Environment Variables
 
 | Variable | Description | Default |
-|----------|-------------|---------|
+|----------|-------------|---------||
 | `WARP_SLEEP` | Seconds to wait for WARP daemon to start | `2` |
 | `WARP_LICENSE_KEY` | WARP+ license key (optional, runtime only) | - |
 | `GOST_ARGS` | Custom GOST proxy arguments | `-L :1080` |
+| `PROXY_USER` | Username for proxy authentication (optional) | - |
+| `PROXY_PASS` | Password for proxy authentication (optional) | - |
 
 ### Using WARP+ License Key
 
@@ -84,6 +86,30 @@ services:
 ```
 
 **Security Note:** Never bake your license key into the image. Always provide it at runtime to prevent credential leakage in build logs or image metadata.
+
+### Proxy Authentication
+
+To require authentication when connecting to the proxy, set both `PROXY_USER` and `PROXY_PASS`:
+
+```yaml
+services:
+  warp:
+    environment:
+      - PROXY_USER=myuser
+      - PROXY_PASS=mysecretpassword
+```
+
+Then connect using credentials:
+
+```bash
+# SOCKS5 with authentication
+curl --socks5 myuser:mysecretpassword@127.0.0.1:1080 https://cloudflare.com/cdn-cgi/trace
+
+# HTTP proxy with authentication
+curl -x http://myuser:mysecretpassword@127.0.0.1:1080 https://example.com
+```
+
+**Note:** If only one of `PROXY_USER` or `PROXY_PASS` is set, authentication will be disabled and the proxy will run without credentials.
 
 ## Troubleshooting
 

@@ -83,5 +83,12 @@ if [ -n "$WARP_ENABLE_NAT" ]; then
     sudo nft add rule ip6 mangle forward tcp flags syn tcp option maxseg size set rt mtu
 fi
 
+# Build GOST arguments with optional authentication
+if [ -n "$PROXY_USER" ] && [ -n "$PROXY_PASS" ]; then
+    # Use authentication - construct the listener with credentials
+    GOST_ARGS="-L socks5://${PROXY_USER}:${PROXY_PASS}@:1080"
+    echo "Proxy authentication enabled for user: ${PROXY_USER}"
+fi
+
 # start the proxy
 gost $GOST_ARGS
