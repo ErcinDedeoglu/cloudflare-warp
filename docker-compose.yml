@@ -3,36 +3,16 @@ services:
     image: dublok/cloudflare-warp:latest
     container_name: warp
     restart: always
-    # add removed rule back (https://github.com/opencontainers/runc/pull/3468)
-    device_cgroup_rules:
-      - 'c 10:200 rwm'
     ports:
       - "1080:1080"
     environment:
-      # - WARP_CONNECT_TIMEOUT=30 # max seconds to wait for WARP connection (smart retry)
-      # - WARP_LICENSE_KEY= # optional
-      # - WARP_ENABLE_NAT=1 # enable nat
-      # - PROXY_USER=myuser # optional proxy authentication
-      # - PROXY_PASS=mypassword # optional proxy authentication
-      # - PROXY_MAX_CONN=10 # max concurrent connections per IP
-      # - PROXY_MAX_RPS=10 # max requests per second per IP
-      # - PROXY_ALLOWED_IPS=192.168.1.0/24,10.0.0.0/8 # IP whitelist (most secure)
-      # - PROXY_AUTH_FAIL_LIMIT=5 # ban after this many failed auth attempts
-      # - PROXY_AUTH_BAN_TIME=300 # ban duration in seconds after failed auth
-      # - PROXY_AUTH_FAIL_WINDOW=60 # time window to count failures
-    cap_add:
-      # Docker already have them, these are for podman users
-      - MKNOD
-      - AUDIT_WRITE
-      # additional required cap for warp, both for podman and docker
-      - NET_ADMIN
-    sysctls:
-      - net.ipv6.conf.all.disable_ipv6=0
-      - net.ipv4.conf.all.src_valid_mark=1
-      # uncomment for nat
-      # - net.ipv4.ip_forward=1
-      # - net.ipv6.conf.all.forwarding=1
-      # - net.ipv6.conf.all.accept_ra=2
+      # - WARP_LICENSE_KEY=your-key              # WARP+ license key
+      # - WARP_CONNECT_TIMEOUT=30                # max seconds to wait for WARP daemon
+      # - PROXY_USER=myuser                      # proxy authentication username
+      # - PROXY_PASS=mypassword                  # proxy authentication password
+      # - PROXY_ALLOWED_IPS=192.168.1.0/24       # IP whitelist (comma-separated CIDRs)
+      # - PROXY_MAX_CONN=10                      # max concurrent connections per IP
+      # - PROXY_MAX_RPS=10                       # max requests per second per IP
     volumes:
       - warp-data:/var/lib/cloudflare-warp
 
