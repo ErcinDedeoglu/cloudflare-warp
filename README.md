@@ -64,6 +64,35 @@ volumes:
 curl --socks5-hostname myuser:mypassword@127.0.0.1:1080 https://cloudflare.com/cdn-cgi/trace
 ```
 
+## Direct Proxy (Bypass WARP)
+
+A second proxy is always available on port 1081 that exits directly through Docker's network without routing through WARP. Useful when you need your real IP for certain services.
+
+```yaml
+services:
+  warp:
+    image: dublok/cloudflare-warp:latest
+    ports:
+      - "1080:1080"  # WARP proxy
+      - "1081:1081"  # Direct proxy
+    environment:
+      - PROXY_USER=myuser
+      - PROXY_PASS=mypassword
+    volumes:
+      - warp-data:/var/lib/cloudflare-warp
+
+volumes:
+  warp-data:
+```
+
+```bash
+# Through WARP (Cloudflare IP)
+curl --socks5-hostname myuser:mypassword@127.0.0.1:1080 https://ifconfig.me
+
+# Direct exit (your real IP)
+curl --socks5-hostname myuser:mypassword@127.0.0.1:1081 https://ifconfig.me
+```
+
 ## License
 
 CC-BY-NC-4.0 - Non-commercial use only with attribution.

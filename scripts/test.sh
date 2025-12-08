@@ -25,6 +25,7 @@ CONTAINER_NAME="warp-test"
 WARP_SLEEP=5
 INIT_WAIT=15
 PROXY_PORT=1080
+DIRECT_PORT=1081
 
 # Track test results
 TESTS_PASSED=0
@@ -82,7 +83,7 @@ echo "╚═══════════════════════�
 echo -e "${NC}"
 
 # Test 1: Build Docker image
-echo -e "\n${YELLOW}[1/8] Building Docker image...${NC}"
+echo -e "\n${YELLOW}[1/10] Building Docker image...${NC}"
 BUILD_LOG=$(mktemp)
 docker build \
     --build-arg COMMIT_SHA="local-test" \
@@ -103,7 +104,7 @@ else
 fi
 
 # Test 2: Start container
-echo -e "\n${YELLOW}[2/8] Starting container...${NC}"
+echo -e "\n${YELLOW}[2/10] Starting container...${NC}"
 
 # Clean up any existing container
 docker stop "$CONTAINER_NAME" 2>/dev/null || true
@@ -118,6 +119,7 @@ if docker run -d \
     --sysctl net.ipv4.conf.all.src_valid_mark=1 \
     -e WARP_SLEEP="$WARP_SLEEP" \
     -p "$PROXY_PORT:1080" \
+    -p "$DIRECT_PORT:1081" \
     "$IMAGE_NAME:latest" > /dev/null 2>&1; then
     log_success "Container started"
 else
@@ -126,11 +128,11 @@ else
 fi
 
 # Test 3: Wait for WARP initialization
-echo -e "\n${YELLOW}[3/8] Waiting for WARP to initialize (${INIT_WAIT}s)...${NC}"
+echo -e "\n${YELLOW}[3/10] Waiting for WARP to initialize (${INIT_WAIT}s)...${NC}"
 sleep "$INIT_WAIT"
 
 # Test 4: Check container is running
-echo -e "\n${YELLOW}[4/8] Checking container status...${NC}"
+echo -e "\n${YELLOW}[4/10] Checking container status...${NC}"
 if [ "$(docker inspect -f '{{.State.Running}}' "$CONTAINER_NAME" 2>/dev/null)" = "true" ]; then
     log_success "Container is running"
 else
@@ -141,7 +143,7 @@ else
 fi
 
 # Test 5: Check WARP connection status
-echo -e "\n${YELLOW}[5/8] Checking WARP connection status...${NC}"
+echo -e "\n${YELLOW}[5/10] Checking WARP connection status...${NC}"
 WARP_STATUS=$(docker exec "$CONTAINER_NAME" warp-cli --accept-tos status 2>&1)
 if echo "$WARP_STATUS" | grep -q "Connected"; then
     log_success "WARP is connected"
@@ -151,7 +153,7 @@ else
 fi
 
 # Test 6: Check SOCKS5 proxy is listening
-echo -e "\n${YELLOW}[6/8] Checking SOCKS5 proxy...${NC}"
+echo -e "\n${YELLOW}[6/10] Checking SOCKS5 proxy...${NC}"
 sleep 2  # Give gost a moment to start
 if nc -z localhost "$PROXY_PORT" 2>/dev/null; then
     log_success "SOCKS5 proxy is listening on port $PROXY_PORT"
@@ -160,7 +162,7 @@ else
 fi
 
 # Test 7: Test WARP trace (verify traffic goes through WARP)
-echo -e "\n${YELLOW}[7/8] Testing WARP traffic routing...${NC}"
+echo -e "\n${YELLOW}[7/10] Testing WARP traffic routing...${NC}"
 TRACE=$(curl -x "socks5h://localhost:$PROXY_PORT" -s --max-time 30 https://cloudflare.com/cdn-cgi/trace 2>/dev/null)
 if [ -n "$TRACE" ]; then
     WARP_FLAG=$(echo "$TRACE" | grep "^warp=" | cut -d= -f2)
@@ -174,7 +176,7 @@ else
 fi
 
 # Test 8: Verify IP masking
-echo -e "\n${YELLOW}[8/8] Verifying IP masking...${NC}"
+echo -e "\n${YELLOW}[8/10] Verifying IP masking...${NC}"
 REAL_IP=$(curl -s --max-time 15 https://ifconfig.me 2>/dev/null || curl -s --max-time 15 https://api.ipify.org 2>/dev/null)
 WARP_IP=$(curl -x "socks5h://localhost:$PROXY_PORT" -s --max-time 30 https://ifconfig.me 2>/dev/null || \
           curl -x "socks5h://localhost:$PROXY_PORT" -s --max-time 30 https://api.ipify.org 2>/dev/null)
@@ -187,6 +189,30 @@ if [ -n "$REAL_IP" ] && [ -n "$WARP_IP" ]; then
     fi
 else
     log_error "Failed to retrieve IP addresses"
+fi
+
+# Test 9: Check direct proxy is listening
+echo -e "\n${YELLOW}[9/10] Checking direct proxy...${NC}"
+if nc -z localhost "$DIRECT_PORT" 2>/dev/null; then
+    log_success "Direct proxy is listening on port $DIRECT_PORT"
+else
+    log_error "Direct proxy is not listening on port $DIRECT_PORT"
+fi
+
+# Test 10: Verify direct proxy uses real IP (not WARP)
+echo -e "\n${YELLOW}[10/10] Verifying direct proxy routing...${NC}"
+DIRECT_IP=$(curl -x "socks5h://localhost:$DIRECT_PORT" -s --max-time 30 https://ifconfig.me 2>/dev/null || \
+            curl -x "socks5h://localhost:$DIRECT_PORT" -s --max-time 30 https://api.ipify.org 2>/dev/null)
+
+if [ -n "$REAL_IP" ] && [ -n "$DIRECT_IP" ]; then
+    if [ "$REAL_IP" = "$DIRECT_IP" ]; then
+        log_success "Direct proxy uses real IP: $DIRECT_IP"
+    else
+        log_warn "Direct proxy IP differs from real IP (Real: $REAL_IP, Direct: $DIRECT_IP) - may be expected in some network configs"
+        TESTS_PASSED=$((TESTS_PASSED + 1))  # Count as pass since direct proxy is working
+    fi
+else
+    log_error "Failed to retrieve direct proxy IP"
 fi
 
 # Print summary

@@ -4,7 +4,8 @@ services:
     container_name: warp
     restart: always
     ports:
-      - "1080:1080"
+      - "1080:1080"                            # WARP proxy (Cloudflare IP)
+      # - "1081:1081"                          # Direct proxy (real IP)
     environment:
       # - WARP_LICENSE_KEY=your-key              # WARP+ license key
       # - WARP_CONNECT_TIMEOUT=30                # max seconds to wait for WARP daemon

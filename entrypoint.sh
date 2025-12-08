@@ -75,6 +75,15 @@ if [ -n "$PROXY_ALLOWED_IPS" ]; then
     echo "IP whitelist enabled: ${PROXY_ALLOWED_IPS}"
 fi
 
+# Start direct proxy on port 1081 (bypasses WARP)
+DIRECT_LISTEN=":1081"
+if [ -n "$PROXY_USER" ] && [ -n "$PROXY_PASS" ]; then
+    DIRECT_LISTEN="${PROXY_USER}:${PROXY_PASS}@:1081"
+fi
+DIRECT_ARGS="-L socks5://${DIRECT_LISTEN}?${GOST_OPTS}"
+echo "Starting direct proxy on :1081 -> Internet (no WARP)"
+gost $DIRECT_ARGS &
+
 # Chain GOST to WARP proxy
 GOST_ARGS="-L socks5://${GOST_LISTEN}?${GOST_OPTS} -F socks5://127.0.0.1:40000"
 
