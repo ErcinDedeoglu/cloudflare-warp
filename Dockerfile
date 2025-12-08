@@ -1,8 +1,7 @@
-ARG BASE_IMAGE=ubuntu:22.04
+ARG BASE_IMAGE=ubuntu:24.04
 
 FROM ${BASE_IMAGE}
 
-ARG GOST_VERSION=3.2.6
 ARG COMMIT_SHA
 ARG TARGETPLATFORM
 
@@ -15,7 +14,6 @@ LABEL org.opencontainers.image.documentation="https://github.com/ErcinDedeoglu/c
 LABEL org.opencontainers.image.vendor="Ercin Dedeoglu"
 LABEL org.opencontainers.image.licenses="CC-BY-NC-4.0"
 LABEL org.opencontainers.image.revision=${COMMIT_SHA}
-LABEL GOST_VERSION=${GOST_VERSION}
 LABEL COMMIT_SHA=${COMMIT_SHA}
 
 COPY entrypoint.sh /entrypoint.sh
@@ -35,6 +33,8 @@ RUN case ${TARGETPLATFORM} in \
     apt-get install -y --no-install-recommends cloudflare-warp && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
+    GOST_VERSION=$(curl -s https://api.github.com/repos/go-gost/gost/releases/latest | jq -r '.tag_name' | sed 's/^v//') && \
+    echo "Installing GOST version: ${GOST_VERSION}" && \
     FILE_NAME="gost_${GOST_VERSION}_linux_${ARCH}.tar.gz" && \
     curl -fLO "https://github.com/go-gost/gost/releases/download/v${GOST_VERSION}/${FILE_NAME}" && \
     tar -xzf ${FILE_NAME} -C /usr/bin/ gost && \
