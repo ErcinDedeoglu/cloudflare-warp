@@ -1,0 +1,462 @@
+# Copyright (c) 2025 Ercin Dedeoglu
+# Licensed under CC BY-NC 4.0 (Attribution-NonCommercial)
+# https://github.com/ErcinDedeoglu/cloudflare-warp
+
+name: Build, Test & Push
+
+on:
+  push:
+    paths:
+      - 'Dockerfile'
+      - 'entrypoint.sh'
+      - 'healthcheck/**'
+  schedule:
+    - cron: '0 0 * * *'
+  workflow_dispatch:
+
+env:
+  IMAGE_NAME: cloudflare-warp
+  TEST_TAG: cloudflare-warp-test:latest
+  TEST_USER: testuser
+  TEST_PASS: testpass123
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image for testing (amd64)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          load: true
+          tags: ${{ env.TEST_TAG }}
+          build-args: |
+            COMMIT_SHA=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build Docker image for arm64 (verify only)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          platforms: linux/arm64
+          push: false
+          build-args: |
+            COMMIT_SHA=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Verify image was built
+        run: |
+          docker images | grep cloudflare-warp-test
+          echo "✅ Images built successfully (amd64 + arm64)"
+
+      - name: Run container
+        run: |
+          docker run -d \
+            --name warp-test \
+            -p 1080:1080 \
+            -p 1081:1081 \
+            -p 8080:8080 \
+            -p 8081:8081 \
+            ${{ env.TEST_TAG }}
+          
+          echo "✅ Container started"
+
+      - name: Wait for WARP to initialize
+        run: |
+          echo "⏳ Waiting for WARP to initialize..."
+          sleep 15
+
+      - name: Check container is running
+        run: |
+          if [ "$(docker inspect -f '{{.State.Running}}' warp-test)" != "true" ]; then
+            echo "❌ Container is not running"
+            docker logs warp-test
+            exit 1
+          fi
+          echo "✅ Container is running"
+
+      - name: Check container logs
+        run: |
+          echo "📋 Container logs:"
+          docker logs warp-test
+
+      - name: Test WARP connection status
+        run: |
+          echo "🔍 Checking WARP connection status..."
+          
+          STATUS=$(docker exec warp-test warp-cli --accept-tos status)
+          echo "$STATUS"
+          
+          if echo "$STATUS" | grep -q "Connected"; then
+            echo "✅ WARP is connected"
+          else
+            echo "❌ WARP is not connected"
+            docker logs warp-test
+            exit 1
+          fi
+          
+          echo "📋 WARP settings:"
+          docker exec warp-test warp-cli --accept-tos settings
+
+      - name: Test SOCKS5 proxy is listening
+        run: |
+          echo "🔍 Checking if SOCKS5 proxy is listening on port 1080..."
+          sleep 5
+          
+          if nc -z localhost 1080; then
+            echo "✅ SOCKS5 proxy is listening on port 1080"
+          else
+            echo "❌ SOCKS5 proxy is not listening"
+            docker logs warp-test
+            exit 1
+          fi
+
+      - name: Test proxy connectivity
+        run: |
+          echo "🔍 Testing proxy connectivity..."
+          
+          if curl -x socks5h://localhost:1080 -s --max-time 30 https://cloudflare.com/cdn-cgi/trace; then
+            echo ""
+            echo "✅ Proxy connectivity test passed"
+          else
+            echo "❌ Proxy connectivity test failed"
+            docker logs warp-test
+            exit 1
+          fi
+
+      - name: Test WARP trace (check if connected to WARP)
+        run: |
+          echo "🔍 Checking if traffic is going through WARP..."
+          
+          TRACE=$(curl -x socks5h://localhost:1080 -s --max-time 30 https://cloudflare.com/cdn-cgi/trace)
+          
+          if [ -z "$TRACE" ]; then
+            echo "❌ Failed to get trace from Cloudflare"
+            docker logs warp-test
+            exit 1
+          fi
+          
+          echo "Trace output:"
+          echo "$TRACE"
+          
+          if echo "$TRACE" | grep -qE "warp=(plus|on)"; then
+            echo "✅ Traffic is routed through WARP!"
+          else
+            echo "❌ WARP connection not established - warp flag is not 'on' or 'plus'"
+            docker logs warp-test
+            exit 1
+          fi
+
+      - name: Test IP is different through WARP
+        run: |
+          echo "🔍 Verifying IP address changes through WARP..."
+          
+          REAL_IP=$(curl -s --max-time 15 https://ifconfig.me || curl -s --max-time 15 https://api.ipify.org)
+          echo "Real IP: $REAL_IP"
+          
+          if [ -z "$REAL_IP" ]; then
+            echo "❌ Failed to get real IP"
+            exit 1
+          fi
+          
+          WARP_IP=$(curl -x socks5h://localhost:1080 -s --max-time 30 https://ifconfig.me || curl -x socks5h://localhost:1080 -s --max-time 30 https://api.ipify.org)
+          echo "WARP IP: $WARP_IP"
+          
+          if [ -z "$WARP_IP" ]; then
+            echo "❌ Failed to get WARP IP"
+            docker logs warp-test
+            exit 1
+          fi
+          
+          if [ "$REAL_IP" != "$WARP_IP" ]; then
+            echo "✅ IP addresses are different - WARP is masking your real IP!"
+          else
+            echo "❌ IP addresses are the same - WARP is not working properly"
+            docker logs warp-test
+            exit 1
+          fi
+
+      - name: Run healthcheck script
+        run: |
+          echo "🔍 Running internal healthcheck..."
+          if docker exec warp-test /healthcheck/index.sh; then
+            echo "✅ Healthcheck passed"
+          else
+            echo "❌ Healthcheck failed"
+            docker logs warp-test
+            exit 1
+          fi
+
+      - name: Test container restart
+        run: |
+          echo "🔄 Testing container restart..."
+          docker restart warp-test
+          sleep 15
+          
+          if [ "$(docker inspect -f '{{.State.Running}}' warp-test)" = "true" ]; then
+            echo "✅ Container restarted successfully"
+          else
+            echo "❌ Container failed to restart"
+            docker logs warp-test
+            exit 1
+          fi
+
+      - name: Test direct SOCKS5 proxy (port 1081)
+        run: |
+          echo "🔍 Testing direct SOCKS5 proxy on port 1081..."
+          
+          if ! nc -z localhost 1081; then
+            echo "❌ Direct SOCKS5 proxy is not listening on port 1081"
+            docker logs warp-test
+            exit 1
+          fi
+          echo "✅ Direct SOCKS5 proxy is listening on port 1081"
+          
+          DIRECT_IP=$(curl -x socks5h://localhost:1081 -s --max-time 30 https://ifconfig.me || \
+                      curl -x socks5h://localhost:1081 -s --max-time 30 https://api.ipify.org)
+          echo "Direct proxy IP: $DIRECT_IP"
+          
+          if [ -n "$DIRECT_IP" ]; then
+            echo "✅ Direct SOCKS5 proxy is working"
+          else
+            echo "❌ Direct SOCKS5 proxy connectivity failed"
+            docker logs warp-test
+            exit 1
+          fi
+
+      - name: Test HTTP WARP proxy (port 8080)
+        run: |
+          echo "🔍 Testing HTTP WARP proxy on port 8080..."
+          
+          if ! nc -z localhost 8080; then
+            echo "❌ HTTP WARP proxy is not listening on port 8080"
+            docker logs warp-test
+            exit 1
+          fi
+          echo "✅ HTTP WARP proxy is listening on port 8080"
+          
+          TRACE=$(curl -x http://localhost:8080 -s --max-time 30 https://cloudflare.com/cdn-cgi/trace)
+          echo "Trace output:"
+          echo "$TRACE"
+          
+          if echo "$TRACE" | grep -qE "warp=(plus|on)"; then
+            echo "✅ HTTP traffic is routed through WARP!"
+          else
+            echo "❌ HTTP WARP proxy not routing through WARP"
+            docker logs warp-test
+            exit 1
+          fi
+
+      - name: Test HTTP direct proxy (port 8081)
+        run: |
+          echo "🔍 Testing HTTP direct proxy on port 8081..."
+          
+          if ! nc -z localhost 8081; then
+            echo "❌ HTTP direct proxy is not listening on port 8081"
+            docker logs warp-test
+            exit 1
+          fi
+          echo "✅ HTTP direct proxy is listening on port 8081"
+          
+          DIRECT_IP=$(curl -x http://localhost:8081 -s --max-time 30 https://ifconfig.me || \
+                      curl -x http://localhost:8081 -s --max-time 30 https://api.ipify.org)
+          echo "HTTP Direct proxy IP: $DIRECT_IP"
+          
+          if [ -n "$DIRECT_IP" ]; then
+            echo "✅ HTTP direct proxy is working"
+          else
+            echo "❌ HTTP direct proxy connectivity failed"
+            docker logs warp-test
+            exit 1
+          fi
+
+      - name: Verify direct proxies use real IP (not WARP)
+        run: |
+          echo "🔍 Verifying direct proxies bypass WARP..."
+          
+          # Check SOCKS5 direct trace
+          DIRECT_TRACE=$(curl -x socks5h://localhost:1081 -s --max-time 30 https://cloudflare.com/cdn-cgi/trace)
+          echo "Direct SOCKS5 trace:"
+          echo "$DIRECT_TRACE"
+          
+          if echo "$DIRECT_TRACE" | grep -qE "warp=off"; then
+            echo "✅ SOCKS5 direct proxy correctly bypasses WARP (warp=off)"
+          else
+            echo "⚠️ SOCKS5 direct proxy warp status: $(echo "$DIRECT_TRACE" | grep "^warp=")"
+          fi
+          
+          # Check HTTP direct trace
+          HTTP_DIRECT_TRACE=$(curl -x http://localhost:8081 -s --max-time 30 https://cloudflare.com/cdn-cgi/trace)
+          echo "Direct HTTP trace:"
+          echo "$HTTP_DIRECT_TRACE"
+          
+          if echo "$HTTP_DIRECT_TRACE" | grep -qE "warp=off"; then
+            echo "✅ HTTP direct proxy correctly bypasses WARP (warp=off)"
+          else
+            echo "⚠️ HTTP direct proxy warp status: $(echo "$HTTP_DIRECT_TRACE" | grep "^warp=")"
+          fi
+
+      - name: Cleanup test container (no auth)
+        run: |
+          echo "🧹 Cleaning up container without auth..."
+          docker stop warp-test || true
+          docker rm warp-test || true
+
+      # ========================================
+      # Test with Authentication
+      # ========================================
+      - name: Run container with authentication
+        run: |
+          echo "🔐 Starting container with authentication enabled..."
+          docker run -d \
+            --name warp-test-auth \
+            -e PROXY_USER=${{ env.TEST_USER }} \
+            -e PROXY_PASS=${{ env.TEST_PASS }} \
+            -p 2080:1080 \
+            -p 2081:1081 \
+            -p 9080:8080 \
+            -p 9081:8081 \
+            ${{ env.TEST_TAG }}
+          
+          echo "✅ Container with auth started"
+
+      - name: Wait for WARP to initialize (auth container)
+        run: |
+          echo "⏳ Waiting for WARP to initialize..."
+          sleep 15
+
+      - name: Test auth container is running
+        run: |
+          if [ "$(docker inspect -f '{{.State.Running}}' warp-test-auth)" != "true" ]; then
+            echo "❌ Auth container is not running"
+            docker logs warp-test-auth
+            exit 1
+          fi
+          echo "✅ Auth container is running"
+
+      - name: Test authentication blocks unauthenticated requests
+        run: |
+          echo "🔍 Testing that unauthenticated requests are blocked..."
+          
+          # SOCKS5 without auth should fail
+          if curl -x socks5h://localhost:2080 -s --max-time 10 https://cloudflare.com/cdn-cgi/trace 2>/dev/null; then
+            echo "❌ SOCKS5 proxy allowed unauthenticated request (should be blocked)"
+            exit 1
+          else
+            echo "✅ SOCKS5 proxy correctly blocked unauthenticated request"
+          fi
+          
+          # HTTP without auth should fail
+          if curl -x http://localhost:9080 -s --max-time 10 https://cloudflare.com/cdn-cgi/trace 2>/dev/null; then
+            echo "❌ HTTP proxy allowed unauthenticated request (should be blocked)"
+            exit 1
+          else
+            echo "✅ HTTP proxy correctly blocked unauthenticated request"
+          fi
+
+      - name: Test SOCKS5 WARP proxy with authentication
+        run: |
+          echo "🔍 Testing SOCKS5 WARP proxy with auth..."
+          
+          TRACE=$(curl -x socks5h://${{ env.TEST_USER }}:${{ env.TEST_PASS }}@localhost:2080 -s --max-time 30 https://cloudflare.com/cdn-cgi/trace)
+          
+          if [ -z "$TRACE" ]; then
+            echo "❌ Failed to connect with authentication"
+            docker logs warp-test-auth
+            exit 1
+          fi
+          
+          echo "Trace output:"
+          echo "$TRACE"
+          
+          if echo "$TRACE" | grep -qE "warp=(plus|on)"; then
+            echo "✅ SOCKS5 with auth routes through WARP!"
+          else
+            echo "❌ SOCKS5 with auth not routing through WARP"
+            docker logs warp-test-auth
+            exit 1
+          fi
+
+      - name: Test HTTP WARP proxy with authentication
+        run: |
+          echo "🔍 Testing HTTP WARP proxy with auth..."
+          
+          TRACE=$(curl -x http://${{ env.TEST_USER }}:${{ env.TEST_PASS }}@localhost:9080 -s --max-time 30 https://cloudflare.com/cdn-cgi/trace)
+          
+          if [ -z "$TRACE" ]; then
+            echo "❌ Failed to connect with authentication"
+            docker logs warp-test-auth
+            exit 1
+          fi
+          
+          echo "Trace output:"
+          echo "$TRACE"
+          
+          if echo "$TRACE" | grep -qE "warp=(plus|on)"; then
+            echo "✅ HTTP with auth routes through WARP!"
+          else
+            echo "❌ HTTP with auth not routing through WARP"
+            docker logs warp-test-auth
+            exit 1
+          fi
+
+      - name: Test direct proxies with authentication
+        run: |
+          echo "🔍 Testing direct proxies with auth..."
+          
+          # SOCKS5 direct with auth
+          DIRECT_SOCKS=$(curl -x socks5h://${{ env.TEST_USER }}:${{ env.TEST_PASS }}@localhost:2081 -s --max-time 30 https://ifconfig.me)
+          if [ -n "$DIRECT_SOCKS" ]; then
+            echo "✅ SOCKS5 direct with auth works - IP: $DIRECT_SOCKS"
+          else
+            echo "❌ SOCKS5 direct with auth failed"
+            docker logs warp-test-auth
+            exit 1
+          fi
+          
+          # HTTP direct with auth
+          DIRECT_HTTP=$(curl -x http://${{ env.TEST_USER }}:${{ env.TEST_PASS }}@localhost:9081 -s --max-time 30 https://ifconfig.me)
+          if [ -n "$DIRECT_HTTP" ]; then
+            echo "✅ HTTP direct with auth works - IP: $DIRECT_HTTP"
+          else
+            echo "❌ HTTP direct with auth failed"
+            docker logs warp-test-auth
+            exit 1
+          fi
+
+      - name: Cleanup test container (with auth)
+        if: always()
+        run: |
+          echo "🧹 Cleaning up all test containers..."
+          docker stop warp-test warp-test-auth || true
+          docker rm warp-test warp-test-auth || true
+          echo "✅ Cleanup complete"
+
+  push:
+    needs: build-and-test
+    permissions:
+      contents: write
+      packages: write
+      actions: write
+    uses: dubloksoftware/workflows/.github/workflows/build-and-push.yml@main
+    with:
+      image_name: cloudflare-warp
+      platforms: 'linux/amd64,linux/arm64'
+      context_path: '.'
+      dockerfile_path: 'Dockerfile'
+    secrets:
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+      DOCKER_TOKEN: ${{ secrets.DOCKER_TOKEN }}

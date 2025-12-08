@@ -22,7 +22,6 @@ NC='\033[0m' # No Color
 # Configuration
 IMAGE_NAME="cloudflare-warp-test"
 CONTAINER_NAME="warp-test"
-WARP_SLEEP=5
 INIT_WAIT=15
 PROXY_PORT=1080
 DIRECT_PORT=1081
@@ -114,12 +113,6 @@ docker rm "$CONTAINER_NAME" 2>/dev/null || true
 
 if docker run -d \
     --name "$CONTAINER_NAME" \
-    --cap-add NET_ADMIN \
-    --cap-add MKNOD \
-    --cap-add AUDIT_WRITE \
-    --device-cgroup-rule='c 10:200 rwm' \
-    --sysctl net.ipv4.conf.all.src_valid_mark=1 \
-    -e WARP_SLEEP="$WARP_SLEEP" \
     -p "$PROXY_PORT:1080" \
     -p "$DIRECT_PORT:1081" \
     -p "$HTTP_PROXY_PORT:8080" \
