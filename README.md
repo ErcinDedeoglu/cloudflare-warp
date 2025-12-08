@@ -1,8 +1,10 @@
 # Cloudflare WARP
 
-[![Build, Test & Push](https://github.com/ErcinDedeoglu/cloudflare-warp/actions/workflows/build-test-push.yml/badge.svg)](https://github.com/ErcinDedeoglu/cloudflare-warp/actions/workflows/build-test-push.yml)
-[![Docker Pulls](https://img.shields.io/docker/pulls/dublok/cloudflare-warp)](https://hub.docker.com/r/dublok/cloudflare-warp)
-[![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-lightgrey.svg)](https://github.com/ErcinDedeoglu/cloudflare-warp/blob/v1.0/LICENSE)
+[![Build, Test & Push](https://img.shields.io/github/actions/workflow/status/ErcinDedeoglu/cloudflare-warp/build-test-push.yml?branch=v1.0&logo=github&label=Build)](https://github.com/ErcinDedeoglu/cloudflare-warp/actions/workflows/build-test-push.yml)
+[![Docker Pulls](https://img.shields.io/docker/pulls/dublok/cloudflare-warp?logo=docker&label=Pulls)](https://hub.docker.com/r/dublok/cloudflare-warp)
+[![Docker Image Size](https://img.shields.io/docker/image-size/dublok/cloudflare-warp/latest?logo=docker&label=Size)](https://hub.docker.com/r/dublok/cloudflare-warp)
+[![GitHub Stars](https://img.shields.io/github/stars/ErcinDedeoglu/cloudflare-warp?logo=github&label=Stars)](https://github.com/ErcinDedeoglu/cloudflare-warp)
+[![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-blue.svg)](https://github.com/ErcinDedeoglu/cloudflare-warp/blob/v1.0/LICENSE)
 
 Run [Cloudflare WARP](https://1.1.1.1/) in Docker. Provides SOCKS5 and HTTP proxies that route traffic through Cloudflare's network.
 
