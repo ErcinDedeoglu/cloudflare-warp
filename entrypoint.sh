@@ -53,9 +53,7 @@ warp-cli --accept-tos connect
 echo "WARP proxy mode active on localhost:40000"
 
 # disable qlog
-if [ -z "$DEBUG_ENABLE_QLOG" ]; then
-    warp-cli --accept-tos debug qlog disable
-fi
+warp-cli --accept-tos debug qlog disable
 
 # Build GOST arguments
 GOST_LISTEN=":1080"

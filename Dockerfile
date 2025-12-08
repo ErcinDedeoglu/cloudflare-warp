@@ -2,7 +2,6 @@ ARG BASE_IMAGE=ubuntu:22.04
 
 FROM ${BASE_IMAGE}
 
-ARG WARP_VERSION=2025.9.558.0
 ARG GOST_VERSION=3.2.6
 ARG COMMIT_SHA
 ARG TARGETPLATFORM
@@ -16,8 +15,6 @@ LABEL org.opencontainers.image.documentation="https://github.com/ErcinDedeoglu/c
 LABEL org.opencontainers.image.vendor="Ercin Dedeoglu"
 LABEL org.opencontainers.image.licenses="CC-BY-NC-4.0"
 LABEL org.opencontainers.image.revision=${COMMIT_SHA}
-LABEL org.opencontainers.image.version=${WARP_VERSION}
-LABEL WARP_VERSION=${WARP_VERSION}
 LABEL GOST_VERSION=${GOST_VERSION}
 LABEL COMMIT_SHA=${COMMIT_SHA}
 
