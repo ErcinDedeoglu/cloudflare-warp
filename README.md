@@ -39,7 +39,7 @@ If working, you'll see `warp=on` in the output.
 ## Environment Variables
 
 | Variable | Description | Default |
-|----------|-------------|---------|
+|----------|-------------|---------||
 | `WARP_LICENSE_KEY` | WARP+ license key | - |
 | `WARP_CONNECT_TIMEOUT` | Max seconds to wait for WARP daemon | `30` |
 | `PROXY_USER` | Proxy authentication username | - |
@@ -47,6 +47,9 @@ If working, you'll see `warp=on` in the output.
 | `PROXY_ALLOWED_IPS` | IP whitelist (comma-separated CIDRs) | - |
 | `PROXY_MAX_CONN` | Max concurrent connections per IP | `10` |
 | `PROXY_MAX_RPS` | Max requests per second per IP | `10` |
+| `SS_PASSWORD` | Shadowsocks password (enables Shadowsocks server) | - |
+| `SS_PORT` | Shadowsocks WARP port (direct port = SS_PORT+1) | `8388` |
+| `SS_METHOD` | Shadowsocks encryption method | `chacha20-ietf-poly1305` |
 
 ## With Authentication
 
@@ -118,6 +121,62 @@ curl -x http://myuser:mypassword@127.0.0.1:8080 https://ifconfig.me
 # HTTP direct exit (your real IP)
 curl -x http://myuser:mypassword@127.0.0.1:8081 https://ifconfig.me
 ```
+
+## Mobile VPN (Shadowsocks)
+
+Connect your mobile devices using Shadowsocks apps - works as a system-wide VPN without requiring special Docker privileges.
+
+### Supported Apps
+
+| Platform | App | Price |
+|----------|-----|-------|
+| Android | [Shadowsocks](https://play.google.com/store/apps/details?id=com.github.shadowsocks) | Free |
+| Android | [v2rayNG](https://play.google.com/store/apps/details?id=com.v2ray.ang) | Free |
+| iOS | [Shadowrocket](https://apps.apple.com/app/shadowrocket/id932747118) | ~$3 |
+| iOS | [Potatso Lite](https://apps.apple.com/app/potatso-lite/id1239860606) | Free |
+
+### Setup
+
+```yaml
+services:
+  warp:
+    image: dublok/cloudflare-warp:latest
+    ports:
+      - "8388:8388"  # Shadowsocks WARP (Cloudflare IP)
+      - "8389:8389"  # Shadowsocks Direct (real IP)
+    environment:
+      - SS_PASSWORD=your-secure-password
+      - SS_METHOD=chacha20-ietf-poly1305
+    volumes:
+      - warp-data:/var/lib/cloudflare-warp
+
+volumes:
+  warp-data:
+```
+
+### Mobile App Configuration
+
+| Setting | Value |
+|---------|-------|
+| Server | Your server IP or domain |
+| Port | `8388` (WARP) or `8389` (Direct) |
+| Password | Your `SS_PASSWORD` value |
+| Method | `chacha20-ietf-poly1305` |
+
+### Available Encryption Methods
+
+- `chacha20-ietf-poly1305` (recommended, fast on mobile)
+- `aes-256-gcm`
+- `aes-128-gcm`
+- `2022-blake3-aes-128-gcm`
+- `2022-blake3-aes-256-gcm`
+
+### Port Reference
+
+| Port | Protocol | Route |
+|------|----------|-------|
+| 8388 | Shadowsocks | Through WARP (Cloudflare IP) |
+| 8389 | Shadowsocks | Direct (real IP) |
 
 ## License
 

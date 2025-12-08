@@ -19,6 +19,7 @@ env:
   TEST_TAG: cloudflare-warp-test:latest
   TEST_USER: testuser
   TEST_PASS: testpass123
+  TEST_SS_PASS: shadowsocks-test-password
 
 jobs:
   build-and-test:
@@ -443,6 +444,174 @@ jobs:
           echo "🧹 Cleaning up all test containers..."
           docker stop warp-test warp-test-auth || true
           docker rm warp-test warp-test-auth || true
+          echo "✅ Cleanup complete"
+
+      # ========================================
+      # Test Shadowsocks Server
+      # ========================================
+      - name: Run container with Shadowsocks enabled
+        run: |
+          echo "🔐 Starting container with Shadowsocks enabled..."
+          docker run -d \
+            --name warp-test-ss \
+            -e SS_PASSWORD=${{ env.TEST_SS_PASS }} \
+            -e SS_PORT=8388 \
+            -e SS_METHOD=chacha20-ietf-poly1305 \
+            -p 8388:8388 \
+            -p 8389:8389 \
+            ${{ env.TEST_TAG }}
+          
+          echo "✅ Container with Shadowsocks started"
+
+      - name: Wait for Shadowsocks to initialize
+        run: |
+          echo "⏳ Waiting for Shadowsocks server to initialize..."
+          sleep 15
+
+      - name: Check Shadowsocks container is running
+        run: |
+          if [ "$(docker inspect -f '{{.State.Running}}' warp-test-ss)" != "true" ]; then
+            echo "❌ Shadowsocks container is not running"
+            docker logs warp-test-ss
+            exit 1
+          fi
+          echo "✅ Shadowsocks container is running"
+          echo "📋 Container logs:"
+          docker logs warp-test-ss
+
+      - name: Test Shadowsocks WARP port is listening
+        run: |
+          echo "🔍 Checking if Shadowsocks WARP server is listening on port 8388..."
+          
+          if nc -z localhost 8388; then
+            echo "✅ Shadowsocks WARP server is listening on port 8388"
+          else
+            echo "❌ Shadowsocks WARP server is not listening"
+            docker logs warp-test-ss
+            exit 1
+          fi
+
+      - name: Test Shadowsocks Direct port is listening
+        run: |
+          echo "🔍 Checking if Shadowsocks Direct server is listening on port 8389..."
+          
+          if nc -z localhost 8389; then
+            echo "✅ Shadowsocks Direct server is listening on port 8389"
+          else
+            echo "❌ Shadowsocks Direct server is not listening"
+            docker logs warp-test-ss
+            exit 1
+          fi
+
+      - name: Install Shadowsocks client for testing
+        run: |
+          echo "📦 Installing Shadowsocks client..."
+          sudo apt-get update
+          sudo apt-get install -y shadowsocks-libev
+          echo "✅ Shadowsocks client installed"
+
+      - name: Test Shadowsocks WARP proxy connectivity
+        run: |
+          echo "🔍 Testing Shadowsocks WARP proxy..."
+          
+          # Start ss-local to create a local SOCKS5 proxy from Shadowsocks
+          ss-local -s 127.0.0.1 -p 8388 -l 10800 -k "${{ env.TEST_SS_PASS }}" -m chacha20-ietf-poly1305 &
+          SS_PID=$!
+          sleep 3
+          
+          # Test connectivity through Shadowsocks
+          TRACE=$(curl -x socks5h://localhost:10800 -s --max-time 30 https://cloudflare.com/cdn-cgi/trace)
+          
+          kill $SS_PID 2>/dev/null || true
+          
+          if [ -z "$TRACE" ]; then
+            echo "❌ Failed to connect through Shadowsocks WARP proxy"
+            docker logs warp-test-ss
+            exit 1
+          fi
+          
+          echo "Trace output:"
+          echo "$TRACE"
+          
+          if echo "$TRACE" | grep -qE "warp=(plus|on)"; then
+            echo "✅ Shadowsocks WARP proxy routes through WARP!"
+          else
+            echo "❌ Shadowsocks WARP proxy not routing through WARP"
+            docker logs warp-test-ss
+            exit 1
+          fi
+
+      - name: Test Shadowsocks Direct proxy connectivity
+        run: |
+          echo "🔍 Testing Shadowsocks Direct proxy..."
+          
+          # Start ss-local for direct port
+          ss-local -s 127.0.0.1 -p 8389 -l 10801 -k "${{ env.TEST_SS_PASS }}" -m chacha20-ietf-poly1305 &
+          SS_PID=$!
+          sleep 3
+          
+          # Test connectivity through Shadowsocks direct
+          TRACE=$(curl -x socks5h://localhost:10801 -s --max-time 30 https://cloudflare.com/cdn-cgi/trace)
+          
+          kill $SS_PID 2>/dev/null || true
+          
+          if [ -z "$TRACE" ]; then
+            echo "❌ Failed to connect through Shadowsocks Direct proxy"
+            docker logs warp-test-ss
+            exit 1
+          fi
+          
+          echo "Trace output:"
+          echo "$TRACE"
+          
+          if echo "$TRACE" | grep -qE "warp=off"; then
+            echo "✅ Shadowsocks Direct proxy correctly bypasses WARP (warp=off)"
+          else
+            echo "⚠️ Shadowsocks Direct proxy warp status: $(echo "$TRACE" | grep "^warp=")"
+            echo "✅ Shadowsocks Direct proxy is working"
+          fi
+
+      - name: Verify Shadowsocks IP masking through WARP
+        run: |
+          echo "🔍 Verifying IP masking through Shadowsocks WARP..."
+          
+          # Get real IP
+          REAL_IP=$(curl -s --max-time 15 https://ifconfig.me || curl -s --max-time 15 https://api.ipify.org)
+          echo "Real IP: $REAL_IP"
+          
+          # Start ss-local for WARP port
+          ss-local -s 127.0.0.1 -p 8388 -l 10802 -k "${{ env.TEST_SS_PASS }}" -m chacha20-ietf-poly1305 &
+          SS_PID=$!
+          sleep 3
+          
+          # Get IP through Shadowsocks WARP
+          SS_WARP_IP=$(curl -x socks5h://localhost:10802 -s --max-time 30 https://ifconfig.me || \
+                       curl -x socks5h://localhost:10802 -s --max-time 30 https://api.ipify.org)
+          
+          kill $SS_PID 2>/dev/null || true
+          
+          echo "Shadowsocks WARP IP: $SS_WARP_IP"
+          
+          if [ -n "$REAL_IP" ] && [ -n "$SS_WARP_IP" ]; then
+            if [ "$REAL_IP" != "$SS_WARP_IP" ]; then
+              echo "✅ Shadowsocks WARP proxy masks IP! (Real: $REAL_IP → WARP: $SS_WARP_IP)"
+            else
+              echo "❌ IP addresses are the same - Shadowsocks WARP not working properly"
+              docker logs warp-test-ss
+              exit 1
+            fi
+          else
+            echo "❌ Failed to retrieve IP addresses"
+            docker logs warp-test-ss
+            exit 1
+          fi
+
+      - name: Cleanup Shadowsocks test container
+        if: always()
+        run: |
+          echo "🧹 Cleaning up Shadowsocks test container..."
+          docker stop warp-test-ss || true
+          docker rm warp-test-ss || true
           echo "✅ Cleanup complete"
 
   push:
