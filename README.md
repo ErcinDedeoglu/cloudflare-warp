@@ -39,7 +39,7 @@ If working, you'll see `warp=on` in the output.
 ## Environment Variables
 
 | Variable | Description | Default |
-|----------|-------------|---------||
+|----------|-------------|---------|
 | `WARP_LICENSE_KEY` | WARP+ license key | - |
 | `WARP_CONNECT_TIMEOUT` | Max seconds to wait for WARP daemon | `30` |
 | `PROXY_USER` | Proxy authentication username | - |
