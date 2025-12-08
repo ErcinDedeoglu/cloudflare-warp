@@ -75,17 +75,24 @@ if [ -n "$PROXY_ALLOWED_IPS" ]; then
     echo "IP whitelist enabled: ${PROXY_ALLOWED_IPS}"
 fi
 
-# Start direct proxy on port 1081 (bypasses WARP)
+# Build HTTP proxy listen addresses
+HTTP_WARP_LISTEN=":8080"
+HTTP_DIRECT_LISTEN=":8081"
+if [ -n "$PROXY_USER" ] && [ -n "$PROXY_PASS" ]; then
+    HTTP_WARP_LISTEN="${PROXY_USER}:${PROXY_PASS}@:8080"
+    HTTP_DIRECT_LISTEN="${PROXY_USER}:${PROXY_PASS}@:8081"
+fi
+
+# Build direct proxy listen address
 DIRECT_LISTEN=":1081"
 if [ -n "$PROXY_USER" ] && [ -n "$PROXY_PASS" ]; then
     DIRECT_LISTEN="${PROXY_USER}:${PROXY_PASS}@:1081"
 fi
-DIRECT_ARGS="-L socks5://${DIRECT_LISTEN}?${GOST_OPTS}"
-echo "Starting direct proxy on :1081 -> Internet (no WARP)"
-gost $DIRECT_ARGS &
 
-# Chain GOST to WARP proxy
-GOST_ARGS="-L socks5://${GOST_LISTEN}?${GOST_OPTS} -F socks5://127.0.0.1:40000"
+# Start direct proxies (SOCKS5 on 1081, HTTP on 8081) - bypass WARP
+echo "Starting direct proxies on :1081 (SOCKS5) and :8081 (HTTP) -> Internet (no WARP)"
+gost -L "socks5://${DIRECT_LISTEN}?${GOST_OPTS}" -L "http://${HTTP_DIRECT_LISTEN}?${GOST_OPTS}" &
 
-echo "Starting GOST proxy on :1080 -> WARP proxy"
-gost $GOST_ARGS
+# Start WARP proxies (SOCKS5 on 1080, HTTP on 8080) - chain to WARP
+echo "Starting WARP proxies on :1080 (SOCKS5) and :8080 (HTTP) -> WARP proxy"
+gost -L "socks5://${GOST_LISTEN}?${GOST_OPTS}" -L "http://${HTTP_WARP_LISTEN}?${GOST_OPTS}" -F socks5://127.0.0.1:40000
