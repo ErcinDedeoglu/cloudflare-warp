@@ -18,8 +18,6 @@ services:
       # - PROXY_ALLOWED_IPS=192.168.1.0/24       # IP whitelist (comma-separated CIDRs)
       # - PROXY_MAX_CONN=10                      # max concurrent connections per IP
       # - PROXY_MAX_RPS=10                       # max requests per second per IP
-      # - SS_PASSWORD=your-shadowsocks-password  # Shadowsocks password (enables SS server)
-      # - SS_PORT=8388                           # Shadowsocks WARP port (direct = port+1)
       # - SS_METHOD=chacha20-ietf-poly1305       # Shadowsocks encryption method
     volumes:
       - warp-data:/var/lib/cloudflare-warp

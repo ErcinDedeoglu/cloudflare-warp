@@ -19,7 +19,7 @@ env:
   TEST_TAG: cloudflare-warp-test:latest
   TEST_USER: testuser
   TEST_PASS: testpass123
-  TEST_SS_PASS: shadowsocks-test-password
+  DEFAULT_SS_PASS: cloudflare-warp
 
 jobs:
   build-and-test:
@@ -451,17 +451,14 @@ jobs:
       # ========================================
       - name: Run container with Shadowsocks enabled
         run: |
-          echo "🔐 Starting container with Shadowsocks enabled..."
+          echo "🔐 Starting container with Shadowsocks (default password)..."
           docker run -d \
             --name warp-test-ss \
-            -e SS_PASSWORD=${{ env.TEST_SS_PASS }} \
-            -e SS_PORT=8388 \
-            -e SS_METHOD=chacha20-ietf-poly1305 \
             -p 8388:8388 \
             -p 8389:8389 \
             ${{ env.TEST_TAG }}
           
-          echo "✅ Container with Shadowsocks started"
+          echo "✅ Container with Shadowsocks started (using default password: cloudflare-warp)"
 
       - name: Wait for Shadowsocks to initialize
         run: |
@@ -515,7 +512,7 @@ jobs:
           echo "🔍 Testing Shadowsocks WARP proxy..."
           
           # Start ss-local to create a local SOCKS5 proxy from Shadowsocks
-          ss-local -s 127.0.0.1 -p 8388 -l 10800 -k "${{ env.TEST_SS_PASS }}" -m chacha20-ietf-poly1305 &
+          ss-local -s 127.0.0.1 -p 8388 -l 10800 -k "${{ env.DEFAULT_SS_PASS }}" -m chacha20-ietf-poly1305 &
           SS_PID=$!
           sleep 3
           
@@ -546,7 +543,7 @@ jobs:
           echo "🔍 Testing Shadowsocks Direct proxy..."
           
           # Start ss-local for direct port
-          ss-local -s 127.0.0.1 -p 8389 -l 10801 -k "${{ env.TEST_SS_PASS }}" -m chacha20-ietf-poly1305 &
+          ss-local -s 127.0.0.1 -p 8389 -l 10801 -k "${{ env.DEFAULT_SS_PASS }}" -m chacha20-ietf-poly1305 &
           SS_PID=$!
           sleep 3
           
@@ -580,7 +577,7 @@ jobs:
           echo "Real IP: $REAL_IP"
           
           # Start ss-local for WARP port
-          ss-local -s 127.0.0.1 -p 8388 -l 10802 -k "${{ env.TEST_SS_PASS }}" -m chacha20-ietf-poly1305 &
+          ss-local -s 127.0.0.1 -p 8388 -l 10802 -k "${{ env.DEFAULT_SS_PASS }}" -m chacha20-ietf-poly1305 &
           SS_PID=$!
           sleep 3
           
@@ -624,9 +621,6 @@ jobs:
             --name warp-test-all \
             -e PROXY_USER=${{ env.TEST_USER }} \
             -e PROXY_PASS=${{ env.TEST_PASS }} \
-            -e SS_PASSWORD=${{ env.TEST_SS_PASS }} \
-            -e SS_PORT=8388 \
-            -e SS_METHOD=chacha20-ietf-poly1305 \
             -p 3080:1080 \
             -p 3081:1081 \
             -p 3880:8080 \
@@ -635,7 +629,7 @@ jobs:
             -p 3389:8389 \
             ${{ env.TEST_TAG }}
           
-          echo "✅ Container with all modes started"
+          echo "✅ Container with all modes started (SS uses PROXY_PASS)"
 
       - name: Wait for all services to initialize
         run: |
@@ -701,7 +695,7 @@ jobs:
           
           # Shadowsocks WARP
           echo "Testing Shadowsocks WARP (port 3388)..."
-          ss-local -s 127.0.0.1 -p 3388 -l 13388 -k "${{ env.TEST_SS_PASS }}" -m chacha20-ietf-poly1305 &
+          ss-local -s 127.0.0.1 -p 3388 -l 13388 -k "${{ env.TEST_PASS }}" -m chacha20-ietf-poly1305 &
           SS_PID=$!
           sleep 3
           TRACE3=$(curl -x socks5h://localhost:13388 -s --max-time 30 https://cloudflare.com/cdn-cgi/trace)
@@ -741,7 +735,7 @@ jobs:
           
           # Shadowsocks Direct
           echo "Testing Shadowsocks Direct (port 3389)..."
-          ss-local -s 127.0.0.1 -p 3389 -l 13389 -k "${{ env.TEST_SS_PASS }}" -m chacha20-ietf-poly1305 &
+          ss-local -s 127.0.0.1 -p 3389 -l 13389 -k "${{ env.TEST_PASS }}" -m chacha20-ietf-poly1305 &
           SS_PID=$!
           sleep 3
           TRACE3=$(curl -x socks5h://localhost:13389 -s --max-time 30 https://cloudflare.com/cdn-cgi/trace)
@@ -760,9 +754,9 @@ jobs:
           echo "🔍 Testing concurrent connections across all protocols..."
           
           # Start Shadowsocks local clients
-          ss-local -s 127.0.0.1 -p 3388 -l 14388 -k "${{ env.TEST_SS_PASS }}" -m chacha20-ietf-poly1305 &
+          ss-local -s 127.0.0.1 -p 3388 -l 14388 -k "${{ env.TEST_PASS }}" -m chacha20-ietf-poly1305 &
           SS1_PID=$!
-          ss-local -s 127.0.0.1 -p 3389 -l 14389 -k "${{ env.TEST_SS_PASS }}" -m chacha20-ietf-poly1305 &
+          ss-local -s 127.0.0.1 -p 3389 -l 14389 -k "${{ env.TEST_PASS }}" -m chacha20-ietf-poly1305 &
           SS2_PID=$!
           sleep 3
           

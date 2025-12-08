@@ -91,38 +91,36 @@ fi
 echo "Starting direct proxies on :1081 (SOCKS5) and :8081 (HTTP) -> Internet (no WARP)"
 gost -L "socks5://${DIRECT_LISTEN}?${GOST_OPTS}" -L "http://${HTTP_DIRECT_LISTEN}?${GOST_OPTS}" &
 
-# Start Shadowsocks server if enabled (for mobile VPN clients)
-if [ -n "$SS_PASSWORD" ]; then
-    SS_PORT=${SS_PORT:-8388}
-    SS_METHOD=${SS_METHOD:-chacha20-ietf-poly1305}
-    
-    # Build Shadowsocks listen address
-    SS_WARP_LISTEN=":${SS_PORT}"
-    SS_DIRECT_PORT=$((SS_PORT + 1))
-    SS_DIRECT_LISTEN=":${SS_DIRECT_PORT}"
-    
-    echo "Starting Shadowsocks servers:"
-    echo "  - WARP exit on :${SS_PORT} (method: ${SS_METHOD})"
-    echo "  - Direct exit on :${SS_DIRECT_PORT} (method: ${SS_METHOD})"
-    
-    # Shadowsocks through WARP
-    gost -L "ss://${SS_METHOD}:${SS_PASSWORD}@${SS_WARP_LISTEN}?${GOST_OPTS}" -F socks5://127.0.0.1:40000 &
-    
-    # Shadowsocks direct (bypass WARP)
-    gost -L "ss://${SS_METHOD}:${SS_PASSWORD}@${SS_DIRECT_LISTEN}?${GOST_OPTS}" &
-    
-    # Generate connection URLs for mobile apps
-    echo ""
-    echo "=== Shadowsocks Connection Info ==="
-    echo "For mobile apps (Shadowsocks, Shadowrocket, v2rayNG):"
-    echo "  Server: <YOUR_SERVER_IP>"
-    echo "  Port (WARP): ${SS_PORT}"
-    echo "  Port (Direct): ${SS_DIRECT_PORT}"
-    echo "  Password: ${SS_PASSWORD}"
-    echo "  Method: ${SS_METHOD}"
-    echo "==================================="
-    echo ""
+# Start Shadowsocks servers (for mobile VPN clients)
+# Use PROXY_PASS if set, otherwise default to 'cloudflare-warp'
+SS_PASS=${PROXY_PASS:-cloudflare-warp}
+SS_METHOD=${SS_METHOD:-chacha20-ietf-poly1305}
+
+echo "Starting Shadowsocks servers:"
+echo "  - WARP exit on :8388 (method: ${SS_METHOD})"
+echo "  - Direct exit on :8389 (method: ${SS_METHOD})"
+
+# Shadowsocks through WARP
+gost -L "ss://${SS_METHOD}:${SS_PASS}@:8388?${GOST_OPTS}" -F socks5://127.0.0.1:40000 &
+
+# Shadowsocks direct (bypass WARP)
+gost -L "ss://${SS_METHOD}:${SS_PASS}@:8389?${GOST_OPTS}" &
+
+# Generate connection info for mobile apps
+echo ""
+echo "=== Shadowsocks Connection Info ==="
+echo "For mobile apps (Shadowsocks, Shadowrocket, v2rayNG):"
+echo "  Server: <YOUR_SERVER_IP>"
+echo "  Port (WARP): 8388"
+echo "  Port (Direct): 8389"
+if [ -n "$PROXY_PASS" ]; then
+    echo "  Password: <your PROXY_PASS>"
+else
+    echo "  Password: cloudflare-warp"
 fi
+echo "  Method: ${SS_METHOD}"
+echo "==================================="
+echo ""
 
 # Start WARP proxies (SOCKS5 on 1080, HTTP on 8080) - chain to WARP
 echo "Starting WARP proxies on :1080 (SOCKS5) and :8080 (HTTP) -> WARP proxy"

@@ -47,8 +47,6 @@ If working, you'll see `warp=on` in the output.
 | `PROXY_ALLOWED_IPS` | IP whitelist (comma-separated CIDRs) | - |
 | `PROXY_MAX_CONN` | Max concurrent connections per IP | `10` |
 | `PROXY_MAX_RPS` | Max requests per second per IP | `10` |
-| `SS_PASSWORD` | Shadowsocks password (enables Shadowsocks server) | - |
-| `SS_PORT` | Shadowsocks WARP port (direct port = SS_PORT+1) | `8388` |
 | `SS_METHOD` | Shadowsocks encryption method | `chacha20-ietf-poly1305` |
 
 ## With Authentication
@@ -124,7 +122,7 @@ curl -x http://myuser:mypassword@127.0.0.1:8081 https://ifconfig.me
 
 ## Mobile VPN (Shadowsocks)
 
-Connect your mobile devices using Shadowsocks apps - works as a system-wide VPN without requiring special Docker privileges.
+Connect your mobile devices using Shadowsocks apps - works as a system-wide VPN without requiring special Docker privileges. **Shadowsocks is always enabled** on ports 8388/8389.
 
 ### Supported Apps
 
@@ -145,8 +143,7 @@ services:
       - "8388:8388"  # Shadowsocks WARP (Cloudflare IP)
       - "8389:8389"  # Shadowsocks Direct (real IP)
     environment:
-      - SS_PASSWORD=your-secure-password
-      - SS_METHOD=chacha20-ietf-poly1305
+      - PROXY_PASS=your-secure-password  # Optional: sets password for all protocols
     volumes:
       - warp-data:/var/lib/cloudflare-warp
 
@@ -160,16 +157,24 @@ volumes:
 |---------|-------|
 | Server | Your server IP or domain |
 | Port | `8388` (WARP) or `8389` (Direct) |
-| Password | Your `SS_PASSWORD` value |
-| Method | `chacha20-ietf-poly1305` |
+| Password | Your `PROXY_PASS` or `cloudflare-warp` (default) |
+| Method | `chacha20-ietf-poly1305` (default) |
 
 ### Available Encryption Methods
 
-- `chacha20-ietf-poly1305` (recommended, fast on mobile)
+**Recommended (AEAD):**
+- `chacha20-ietf-poly1305` (default, recommended for mobile)
 - `aes-256-gcm`
 - `aes-128-gcm`
+
+**Shadowsocks 2022 (newest, requires base64 key as password):**
 - `2022-blake3-aes-128-gcm`
 - `2022-blake3-aes-256-gcm`
+- `2022-blake3-chacha20-poly1305`
+
+**Other:**
+- `xchacha20-ietf-poly1305`
+- `chacha20-poly1305`
 
 ### Port Reference
 
