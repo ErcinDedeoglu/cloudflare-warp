@@ -614,6 +614,197 @@ jobs:
           docker rm warp-test-ss || true
           echo "✅ Cleanup complete"
 
+      # ========================================
+      # Test All Modes Together (SOCKS5 + HTTP + Shadowsocks + Auth)
+      # ========================================
+      - name: Run container with ALL modes enabled
+        run: |
+          echo "🚀 Starting container with ALL modes enabled..."
+          docker run -d \
+            --name warp-test-all \
+            -e PROXY_USER=${{ env.TEST_USER }} \
+            -e PROXY_PASS=${{ env.TEST_PASS }} \
+            -e SS_PASSWORD=${{ env.TEST_SS_PASS }} \
+            -e SS_PORT=8388 \
+            -e SS_METHOD=chacha20-ietf-poly1305 \
+            -p 3080:1080 \
+            -p 3081:1081 \
+            -p 3880:8080 \
+            -p 3881:8081 \
+            -p 3388:8388 \
+            -p 3389:8389 \
+            ${{ env.TEST_TAG }}
+          
+          echo "✅ Container with all modes started"
+
+      - name: Wait for all services to initialize
+        run: |
+          echo "⏳ Waiting for all services to initialize..."
+          sleep 15
+
+      - name: Check all-modes container is running
+        run: |
+          if [ "$(docker inspect -f '{{.State.Running}}' warp-test-all)" != "true" ]; then
+            echo "❌ All-modes container is not running"
+            docker logs warp-test-all
+            exit 1
+          fi
+          echo "✅ All-modes container is running"
+          echo "📋 Container logs:"
+          docker logs warp-test-all
+
+      - name: Verify all 6 ports are listening
+        run: |
+          echo "🔍 Checking all 6 ports are listening..."
+          
+          FAILED=0
+          
+          for port in 3080 3081 3880 3881 3388 3389; do
+            if nc -z localhost $port; then
+              echo "✅ Port $port is listening"
+            else
+              echo "❌ Port $port is NOT listening"
+              FAILED=1
+            fi
+          done
+          
+          if [ $FAILED -eq 1 ]; then
+            docker logs warp-test-all
+            exit 1
+          fi
+          
+          echo "✅ All 6 ports are listening!"
+
+      - name: Test all WARP proxies route through WARP
+        run: |
+          echo "🔍 Testing all WARP proxies..."
+          
+          # SOCKS5 WARP
+          echo "Testing SOCKS5 WARP (port 3080)..."
+          TRACE1=$(curl -x socks5h://${{ env.TEST_USER }}:${{ env.TEST_PASS }}@localhost:3080 -s --max-time 30 https://cloudflare.com/cdn-cgi/trace)
+          if echo "$TRACE1" | grep -qE "warp=(plus|on)"; then
+            echo "✅ SOCKS5 WARP: OK"
+          else
+            echo "❌ SOCKS5 WARP: FAILED"
+            exit 1
+          fi
+          
+          # HTTP WARP
+          echo "Testing HTTP WARP (port 3880)..."
+          TRACE2=$(curl -x http://${{ env.TEST_USER }}:${{ env.TEST_PASS }}@localhost:3880 -s --max-time 30 https://cloudflare.com/cdn-cgi/trace)
+          if echo "$TRACE2" | grep -qE "warp=(plus|on)"; then
+            echo "✅ HTTP WARP: OK"
+          else
+            echo "❌ HTTP WARP: FAILED"
+            exit 1
+          fi
+          
+          # Shadowsocks WARP
+          echo "Testing Shadowsocks WARP (port 3388)..."
+          ss-local -s 127.0.0.1 -p 3388 -l 13388 -k "${{ env.TEST_SS_PASS }}" -m chacha20-ietf-poly1305 &
+          SS_PID=$!
+          sleep 3
+          TRACE3=$(curl -x socks5h://localhost:13388 -s --max-time 30 https://cloudflare.com/cdn-cgi/trace)
+          kill $SS_PID 2>/dev/null || true
+          if echo "$TRACE3" | grep -qE "warp=(plus|on)"; then
+            echo "✅ Shadowsocks WARP: OK"
+          else
+            echo "❌ Shadowsocks WARP: FAILED"
+            exit 1
+          fi
+          
+          echo "✅ All WARP proxies working!"
+
+      - name: Test all Direct proxies bypass WARP
+        run: |
+          echo "🔍 Testing all Direct proxies..."
+          
+          # SOCKS5 Direct
+          echo "Testing SOCKS5 Direct (port 3081)..."
+          TRACE1=$(curl -x socks5h://${{ env.TEST_USER }}:${{ env.TEST_PASS }}@localhost:3081 -s --max-time 30 https://cloudflare.com/cdn-cgi/trace)
+          if [ -n "$TRACE1" ]; then
+            echo "✅ SOCKS5 Direct: OK (warp=$(echo "$TRACE1" | grep "^warp=" | cut -d= -f2))"
+          else
+            echo "❌ SOCKS5 Direct: FAILED"
+            exit 1
+          fi
+          
+          # HTTP Direct
+          echo "Testing HTTP Direct (port 3881)..."
+          TRACE2=$(curl -x http://${{ env.TEST_USER }}:${{ env.TEST_PASS }}@localhost:3881 -s --max-time 30 https://cloudflare.com/cdn-cgi/trace)
+          if [ -n "$TRACE2" ]; then
+            echo "✅ HTTP Direct: OK (warp=$(echo "$TRACE2" | grep "^warp=" | cut -d= -f2))"
+          else
+            echo "❌ HTTP Direct: FAILED"
+            exit 1
+          fi
+          
+          # Shadowsocks Direct
+          echo "Testing Shadowsocks Direct (port 3389)..."
+          ss-local -s 127.0.0.1 -p 3389 -l 13389 -k "${{ env.TEST_SS_PASS }}" -m chacha20-ietf-poly1305 &
+          SS_PID=$!
+          sleep 3
+          TRACE3=$(curl -x socks5h://localhost:13389 -s --max-time 30 https://cloudflare.com/cdn-cgi/trace)
+          kill $SS_PID 2>/dev/null || true
+          if [ -n "$TRACE3" ]; then
+            echo "✅ Shadowsocks Direct: OK (warp=$(echo "$TRACE3" | grep "^warp=" | cut -d= -f2))"
+          else
+            echo "❌ Shadowsocks Direct: FAILED"
+            exit 1
+          fi
+          
+          echo "✅ All Direct proxies working!"
+
+      - name: Test concurrent connections on all protocols
+        run: |
+          echo "🔍 Testing concurrent connections across all protocols..."
+          
+          # Start Shadowsocks local clients
+          ss-local -s 127.0.0.1 -p 3388 -l 14388 -k "${{ env.TEST_SS_PASS }}" -m chacha20-ietf-poly1305 &
+          SS1_PID=$!
+          ss-local -s 127.0.0.1 -p 3389 -l 14389 -k "${{ env.TEST_SS_PASS }}" -m chacha20-ietf-poly1305 &
+          SS2_PID=$!
+          sleep 3
+          
+          # Run all 6 requests concurrently
+          curl -x socks5h://${{ env.TEST_USER }}:${{ env.TEST_PASS }}@localhost:3080 -s --max-time 30 https://ifconfig.me > /tmp/ip1 &
+          curl -x socks5h://${{ env.TEST_USER }}:${{ env.TEST_PASS }}@localhost:3081 -s --max-time 30 https://ifconfig.me > /tmp/ip2 &
+          curl -x http://${{ env.TEST_USER }}:${{ env.TEST_PASS }}@localhost:3880 -s --max-time 30 https://ifconfig.me > /tmp/ip3 &
+          curl -x http://${{ env.TEST_USER }}:${{ env.TEST_PASS }}@localhost:3881 -s --max-time 30 https://ifconfig.me > /tmp/ip4 &
+          curl -x socks5h://localhost:14388 -s --max-time 30 https://ifconfig.me > /tmp/ip5 &
+          curl -x socks5h://localhost:14389 -s --max-time 30 https://ifconfig.me > /tmp/ip6 &
+          
+          wait
+          
+          kill $SS1_PID $SS2_PID 2>/dev/null || true
+          
+          echo "Results:"
+          echo "  SOCKS5 WARP:       $(cat /tmp/ip1)"
+          echo "  SOCKS5 Direct:     $(cat /tmp/ip2)"
+          echo "  HTTP WARP:         $(cat /tmp/ip3)"
+          echo "  HTTP Direct:       $(cat /tmp/ip4)"
+          echo "  Shadowsocks WARP:  $(cat /tmp/ip5)"
+          echo "  Shadowsocks Direct:$(cat /tmp/ip6)"
+          
+          # Verify all got responses
+          for i in 1 2 3 4 5 6; do
+            if [ -z "$(cat /tmp/ip$i)" ]; then
+              echo "❌ Request $i failed"
+              docker logs warp-test-all
+              exit 1
+            fi
+          done
+          
+          echo "✅ All 6 concurrent connections successful!"
+
+      - name: Cleanup all-modes test container
+        if: always()
+        run: |
+          echo "🧹 Cleaning up all-modes test container..."
+          docker stop warp-test-all || true
+          docker rm warp-test-all || true
+          echo "✅ Cleanup complete"
+
   push:
     needs: build-and-test
     permissions:
