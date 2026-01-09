@@ -1,11 +1,11 @@
 {
   "branch": "v1.0",
-  "build_number": 18,
-  "version": "v1.0.18",
+  "build_number": 19,
+  "version": "v1.0.19",
   "tags": [
     "v1",
     "v1.0",
-    "v1.0.18",
+    "v1.0.19",
     "latest"
   ]
 }
