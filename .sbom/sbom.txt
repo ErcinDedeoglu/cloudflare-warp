@@ -52,7 +52,9 @@ libbrotli1               1.1.0-2build2                      deb
 libbsd0                  0.12.1-1build1.1                   deb     
 libbz2-1.0               1.0.8-5.1build0.1                  deb     
 libc-bin                 2.39-0ubuntu8.6                    deb     
+libc-bin                 2.39-0ubuntu8.7                    deb     
 libc6                    2.39-0ubuntu8.6                    deb     
+libc6                    2.39-0ubuntu8.7                    deb     
 libcap-ng0               0.8.4-2build2                      deb     
 libcap2                  1:2.66-5ubuntu2.2                  deb     
 libcap2-bin              1:2.66-5ubuntu2.2                  deb     
@@ -84,7 +86,7 @@ libkeyutils1             1.6.3-3build1                      deb
 libkrb5-3                1.20.1-6ubuntu2.6                  deb     
 libkrb5support0          1.20.1-6ubuntu2.6                  deb     
 libksba8                 1.6.6-1build1                      deb     
-libldap2                 2.6.7+dfsg-1~exp1ubuntu8.2         deb     
+libldap2                 2.6.10+dfsg-0ubuntu0.24.04.1       deb     
 liblz4-1                 1.9.4-1build1.1                    deb     
 liblzma5                 5.6.1+really5.4.5-1ubuntu0.2       deb     
 libmd0                   1.1.0-2build1.1                    deb     
