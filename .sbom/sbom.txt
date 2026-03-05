@@ -102,8 +102,8 @@ libnl-3-200              3.7.0-0.3build1.1                  deb
 libnl-route-3-200        3.7.0-0.3build1.1                  deb     
 libnpth0t64              1.6-3.1build1                      deb     
 libnspr4                 2:4.35-1.1build1                   deb     
-libnss3                  2:3.98-1build1                     deb     
-libnss3-tools            2:3.98-1build1                     deb     
+libnss3                  2:3.98-1ubuntu0.1                  deb     
+libnss3-tools            2:3.98-1ubuntu0.1                  deb     
 libonig5                 6.9.9-1build1                      deb     
 libp11-kit0              0.25.3-4ubuntu2.1                  deb     
 libpam-modules           1.5.3-5ubuntu5.5                   deb     
