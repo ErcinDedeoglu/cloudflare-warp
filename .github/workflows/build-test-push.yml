@@ -214,6 +214,20 @@ jobs:
             docker logs warp-test
             exit 1
           fi
+          
+          echo "⏳ Waiting for WARP to reconnect after restart..."
+          for i in $(seq 1 30); do
+            if docker exec warp-test warp-cli --accept-tos status 2>/dev/null | grep -q "Connected"; then
+              echo "✅ WARP reconnected after restart (${i}s)"
+              break
+            fi
+            if [ $i -eq 30 ]; then
+              echo "❌ WARP did not reconnect after 30s"
+              docker logs warp-test
+              exit 1
+            fi
+            sleep 1
+          done
 
       - name: Test direct SOCKS5 proxy (port 1081)
         run: |
@@ -249,7 +263,12 @@ jobs:
           fi
           echo "✅ HTTP WARP proxy is listening on port 8080"
           
-          TRACE=$(curl -x http://localhost:8080 -s --max-time 30 https://cloudflare.com/cdn-cgi/trace)
+          TRACE=""
+          for attempt in 1 2 3; do
+            TRACE=$(curl -x http://localhost:8080 -s --max-time 30 https://cloudflare.com/cdn-cgi/trace) && break
+            echo "⚠️ Attempt $attempt failed, retrying in 5s..."
+            sleep 5
+          done
           echo "Trace output:"
           echo "$TRACE"
           
