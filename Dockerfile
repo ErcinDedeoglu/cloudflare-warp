@@ -17,6 +17,7 @@ LABEL org.opencontainers.image.revision=${COMMIT_SHA}
 LABEL COMMIT_SHA=${COMMIT_SHA}
 
 COPY entrypoint.sh /entrypoint.sh
+COPY start-warp-instance.sh /start-warp-instance.sh
 COPY ./healthcheck /healthcheck
 
 RUN case ${TARGETPLATFORM} in \
@@ -41,6 +42,7 @@ RUN case ${TARGETPLATFORM} in \
     rm -f ${FILE_NAME} && \
     chmod +x /usr/bin/gost && \
     chmod +x /entrypoint.sh && \
+    chmod +x /start-warp-instance.sh && \
     chmod +x /healthcheck/index.sh && \
     useradd -m -s /bin/bash warp && \
     echo "warp ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/warp
@@ -50,6 +52,7 @@ USER warp
 RUN mkdir -p /home/warp/.local/share/warp && \
     echo -n 'yes' > /home/warp/.local/share/warp/accepted-tos.txt
 
+ENV WARP_INSTANCES=1
 ENV WARP_CONNECT_TIMEOUT=30
 ENV PROXY_USER=
 ENV PROXY_PASS=
@@ -58,7 +61,7 @@ ENV PROXY_MAX_RPS=10
 ENV PROXY_ALLOWED_IPS=
 ENV SS_METHOD=chacha20-ietf-poly1305
 
-HEALTHCHECK --interval=15s --timeout=5s --start-period=10s --retries=3 \
+HEALTHCHECK --interval=15s --timeout=5s --start-period=120s --retries=3 \
   CMD /healthcheck/index.sh
 
 ENTRYPOINT ["/entrypoint.sh"]

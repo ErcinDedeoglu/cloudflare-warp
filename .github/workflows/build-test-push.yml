@@ -9,6 +9,7 @@ on:
     paths:
       - 'Dockerfile'
       - 'entrypoint.sh'
+      - 'start-warp-instance.sh'
       - 'healthcheck/**'
   schedule:
     - cron: '0 0 * * *'
@@ -833,6 +834,109 @@ jobs:
           echo "🧹 Cleaning up all-modes test container..."
           docker stop warp-test-all || true
           docker rm warp-test-all || true
+          echo "✅ Cleanup complete"
+
+      # ========================================
+      # Test Multi-Instance (IP Rotation)
+      # ========================================
+      - name: Run container with WARP_INSTANCES=2
+        run: |
+          echo "🔄 Starting multi-instance container (2 instances)..."
+          docker run -d \
+            --name warp-test-multi \
+            -e WARP_INSTANCES=2 \
+            -p 5080:1080 \
+            -p 5880:8080 \
+            ${{ env.TEST_TAG }}
+          
+          echo "✅ Multi-instance container started"
+
+      - name: Wait for multi-instance WARP to initialize
+        run: |
+          echo "⏳ Waiting for 2 WARP instances to initialize (up to 90s)..."
+          for i in $(seq 1 90); do
+            if docker logs warp-test-multi 2>&1 | grep -q "Starting GOST proxy"; then
+              echo "✅ Multi-instance WARP ready after ${i}s"
+              break
+            fi
+            if [ $i -eq 90 ]; then
+              echo "❌ Multi-instance WARP did not start in 90s"
+              docker logs warp-test-multi
+              exit 1
+            fi
+            sleep 1
+          done
+
+      - name: Verify both instances started
+        run: |
+          echo "🔍 Checking instance status..."
+          
+          READY=$(docker logs warp-test-multi 2>&1 | grep -oP '\d+(?=/2 WARP instances ready)')
+          echo "Ready instances: ${READY}/2"
+          
+          if [ "$READY" -lt 2 ]; then
+            echo "❌ Not all instances started"
+            docker logs warp-test-multi
+            exit 1
+          fi
+          echo "✅ Both instances are ready"
+
+      - name: Test multi-instance SOCKS5 proxy
+        run: |
+          echo "🔍 Testing multi-instance SOCKS5 proxy..."
+          
+          TRACE=$(curl -x socks5h://localhost:5080 -s --max-time 30 https://cloudflare.com/cdn-cgi/trace)
+          
+          if echo "$TRACE" | grep -qE "warp=(plus|on)"; then
+            echo "✅ Multi-instance SOCKS5 routes through WARP"
+          else
+            echo "❌ Multi-instance SOCKS5 not routing through WARP"
+            docker logs warp-test-multi
+            exit 1
+          fi
+
+      - name: Test multi-instance HTTP proxy
+        run: |
+          echo "🔍 Testing multi-instance HTTP proxy..."
+          
+          TRACE=$(curl -x http://localhost:5880 -s --max-time 30 https://cloudflare.com/cdn-cgi/trace)
+          
+          if echo "$TRACE" | grep -qE "warp=(plus|on)"; then
+            echo "✅ Multi-instance HTTP routes through WARP"
+          else
+            echo "❌ Multi-instance HTTP not routing through WARP"
+            docker logs warp-test-multi
+            exit 1
+          fi
+
+      - name: Test round-robin gives multiple IPs
+        run: |
+          echo "🔍 Testing round-robin IP rotation..."
+          
+          IP1=$(curl -x socks5h://localhost:5080 -s --max-time 30 https://ifconfig.me)
+          IP2=$(curl -x socks5h://localhost:5080 -s --max-time 30 https://ifconfig.me)
+          
+          echo "Request 1 IP: $IP1"
+          echo "Request 2 IP: $IP2"
+          
+          if [ -z "$IP1" ] || [ -z "$IP2" ]; then
+            echo "❌ Failed to get IPs through multi-instance proxy"
+            docker logs warp-test-multi
+            exit 1
+          fi
+          
+          if [ "$IP1" != "$IP2" ]; then
+            echo "✅ Round-robin confirmed: got different IPs!"
+          else
+            echo "⚠️ Got same IP both times (may happen if Cloudflare assigns same exit). Proxy still works."
+          fi
+
+      - name: Cleanup multi-instance test container
+        if: always()
+        run: |
+          echo "🧹 Cleaning up multi-instance test container..."
+          docker stop warp-test-multi || true
+          docker rm warp-test-multi || true
           echo "✅ Cleanup complete"
 
   push:

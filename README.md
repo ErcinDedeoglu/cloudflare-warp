@@ -6,7 +6,7 @@
 [![GitHub Stars](https://img.shields.io/github/stars/ErcinDedeoglu/cloudflare-warp?logo=github&label=Stars)](https://github.com/ErcinDedeoglu/cloudflare-warp)
 [![License: CC BY-NC 4.0](https://img.shields.io/badge/License-CC%20BY--NC%204.0-blue.svg)](https://github.com/ErcinDedeoglu/cloudflare-warp/blob/v1.0/LICENSE)
 
-Run [Cloudflare WARP](https://1.1.1.1/) in Docker. Provides SOCKS5 and HTTP proxies that route traffic through Cloudflare's network.
+Run [Cloudflare WARP](https://1.1.1.1/) in Docker. Provides SOCKS5 and HTTP proxies that route traffic through Cloudflare's network. Supports multiple WARP instances in a single container for IP rotation.
 
 ## Quick Start
 
@@ -42,6 +42,7 @@ If working, you'll see `warp=on` in the output.
 
 | Variable | Description | Default |
 |----------|-------------|---------|
+| `WARP_INSTANCES` | Number of WARP instances. Each gets a unique Cloudflare IP. Traffic is round-robined across all instances. No extra capabilities required | `1` |
 | `WARP_LICENSE_KEY` | WARP+ license key | - |
 | `WARP_CONNECT_TIMEOUT` | Max seconds to wait for WARP daemon | `30` |
 | `PROXY_USER` | Proxy authentication username | - |
@@ -121,6 +122,17 @@ curl -x http://myuser:mypassword@127.0.0.1:8080 https://ifconfig.me
 # HTTP direct exit (your real IP)
 curl -x http://myuser:mypassword@127.0.0.1:8081 https://ifconfig.me
 ```
+
+## Multi-Instance (IP Rotation)
+
+Set `WARP_INSTANCES=N` to run multiple WARP daemons in a single container, each with a unique Cloudflare IP. Traffic is round-robined across all instances on the same ports — no extra capabilities required.
+
+```yaml
+environment:
+  - WARP_INSTANCES=10    # each request exits through a different IP
+```
+
+Each instance uses ~50-100 MB RAM and starts 2 seconds apart. If an instance fails, GOST skips it after 3 failures and retries after 30s.
 
 ## Mobile VPN (Shadowsocks)
 

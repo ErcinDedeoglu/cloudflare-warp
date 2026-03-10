@@ -11,6 +11,9 @@ services:
       # - "8388:8388"                          # Shadowsocks WARP proxy (for mobile VPN)
       # - "8389:8389"                          # Shadowsocks Direct proxy (for mobile VPN)
     environment:
+      # - WARP_INSTANCES=1                       # number of WARP instances (default: 1)
+                                                  # each instance gets a unique Cloudflare IP
+                                                  # traffic is round-robined across all instances
       # - WARP_LICENSE_KEY=your-key              # WARP+ license key
       # - WARP_CONNECT_TIMEOUT=30                # max seconds to wait for WARP daemon
       # - PROXY_USER=myuser                      # proxy authentication username
