@@ -98,8 +98,21 @@ try_license_keys() {
 }
 
 if [ ! -f "${DATA_DIR}/reg.json" ]; then
-    wcli registration new && echo "[Instance ${INSTANCE}] Registered!"
-    if [ "$NUM_KEYS" -gt 0 ]; then
+    REG_OK=false
+    for attempt in 1 2 3 4 5; do
+        if wcli registration new 2>&1; then
+            echo "[Instance ${INSTANCE}] Registered!"
+            REG_OK=true
+            break
+        else
+            echo "[Instance ${INSTANCE}] Registration attempt ${attempt}/5 failed, retrying in 5s..."
+            sleep 5
+        fi
+    done
+    if [ "$REG_OK" = false ]; then
+        echo "[Instance ${INSTANCE}] Warning: registration failed after 5 attempts, continuing without license..."
+    fi
+    if [ "$REG_OK" = true ] && [ "$NUM_KEYS" -gt 0 ]; then
         try_license_keys "applied" || true
     fi
 else

@@ -359,7 +359,7 @@ for i in $(seq 0 $((WARP_INSTANCES - 1))); do
     /start-warp-instance.sh \
         "$i" "$PORT" "$LICENSE_KEYS_CSV" "${WARP_CONNECT_TIMEOUT:-30}" &
     INSTANCE_PIDS+=($!)
-    sleep 2  # stagger to avoid registration races
+    sleep 3  # stagger to avoid Cloudflare API rate-limiting
 done
 
 # ---- verify each instance is connected to WARP (parallel) ----
