@@ -881,12 +881,19 @@ jobs:
             exit 1
           fi
           echo "✅ Both instances are ready"
+          echo "⏳ Waiting 10s for GOST proxy to fully bind ports..."
+          sleep 10
 
       - name: Test multi-instance SOCKS5 proxy
         run: |
           echo "🔍 Testing multi-instance SOCKS5 proxy..."
           
-          TRACE=$(curl -x socks5h://localhost:5080 -s --max-time 30 https://cloudflare.com/cdn-cgi/trace)
+          TRACE=""
+          for attempt in 1 2 3 4 5; do
+            TRACE=$(curl -x socks5h://localhost:5080 -s --max-time 15 https://cloudflare.com/cdn-cgi/trace) && break
+            echo "⚠️ Attempt $attempt failed, retrying in 5s..."
+            sleep 5
+          done
           
           if echo "$TRACE" | grep -qE "warp=(plus|on)"; then
             echo "✅ Multi-instance SOCKS5 routes through WARP"
@@ -900,7 +907,12 @@ jobs:
         run: |
           echo "🔍 Testing multi-instance HTTP proxy..."
           
-          TRACE=$(curl -x http://localhost:5880 -s --max-time 30 https://cloudflare.com/cdn-cgi/trace)
+          TRACE=""
+          for attempt in 1 2 3 4 5; do
+            TRACE=$(curl -x http://localhost:5880 -s --max-time 15 https://cloudflare.com/cdn-cgi/trace) && break
+            echo "⚠️ Attempt $attempt failed, retrying in 5s..."
+            sleep 5
+          done
           
           if echo "$TRACE" | grep -qE "warp=(plus|on)"; then
             echo "✅ Multi-instance HTTP routes through WARP"
