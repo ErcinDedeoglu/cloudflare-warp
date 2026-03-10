@@ -21,6 +21,7 @@ env:
   TEST_USER: testuser
   TEST_PASS: testpass123
   DEFAULT_SS_PASS: cloudflare-warp
+  WARP_TEST_LICENSE_KEY: ${{ secrets.WARP_LICENSE_KEY }}
 
 jobs:
   build-and-test:
@@ -938,6 +939,276 @@ jobs:
           docker stop warp-test-multi || true
           docker rm warp-test-multi || true
           echo "✅ Cleanup complete"
+
+      # ========================================
+      # Test License Key Failure Detection
+      # ========================================
+      - name: Run container with single invalid license key
+        run: |
+          echo "🔑 Starting container with an invalid license key..."
+          docker run -d \
+            --name warp-test-license \
+            -e WARP_LICENSE_KEY=invalid-fake-key-12345 \
+            -p 6080:1080 \
+            ${{ env.TEST_TAG }}
+          
+          echo "✅ Container with invalid license key started"
+
+      - name: Wait for license container to initialize
+        run: |
+          echo "⏳ Waiting for WARP to initialize..."
+          sleep 20
+
+      - name: Verify failed license key error is logged (not suppressed)
+        run: |
+          echo "🔍 Checking container logs for license failure details..."
+          
+          LOGS=$(docker logs warp-test-license 2>&1)
+          
+          # Must show the attempt
+          if echo "$LOGS" | grep -q "Trying license key 1/1"; then
+            echo "✅ License key attempt is logged"
+          else
+            echo "❌ License key attempt is NOT logged"
+            echo "$LOGS"
+            exit 1
+          fi
+          
+          # Must show failure with actual error from warp-cli (not suppressed)
+          if echo "$LOGS" | grep -q "Key 1 failed:"; then
+            echo "✅ License failure with error detail is logged"
+            echo "   $(echo "$LOGS" | grep "Key 1 failed:")"
+          else
+            echo "❌ License failure detail is NOT logged (error may be suppressed)"
+            echo "$LOGS"
+            exit 1
+          fi
+
+      - name: Verify container still works with free WARP after license failure
+        run: |
+          echo "🔍 Verifying container falls back to free WARP..."
+          
+          TRACE=""
+          for attempt in 1 2 3 4 5; do
+            TRACE=$(curl -x socks5h://localhost:6080 -s --max-time 15 https://cloudflare.com/cdn-cgi/trace) && break
+            sleep 5
+          done
+          
+          if echo "$TRACE" | grep -qE "warp=(on|plus)"; then
+            echo "✅ Container works as free WARP after license failure"
+          else
+            echo "❌ Container not working after license failure"
+            docker logs warp-test-license
+            exit 1
+          fi
+
+      - name: Cleanup single invalid key container
+        if: always()
+        run: |
+          docker stop warp-test-license || true
+          docker rm warp-test-license || true
+
+      - name: Run container with multiple invalid license keys
+        run: |
+          echo "🔑 Starting container with multiple invalid keys (comma-separated)..."
+          docker run -d \
+            --name warp-test-multikey \
+            -e WARP_LICENSE_KEY=fake-key-aaa,fake-key-bbb,fake-key-ccc \
+            -p 7080:1080 \
+            ${{ env.TEST_TAG }}
+          
+          echo "✅ Container with 3 invalid keys started"
+
+      - name: Wait for multi-key container to initialize
+        run: |
+          echo "⏳ Waiting for WARP to initialize..."
+          sleep 20
+
+      - name: Verify all keys are tried and each failure is logged
+        run: |
+          echo "🔍 Checking that all 3 keys were tried with individual errors..."
+          
+          LOGS=$(docker logs warp-test-multikey 2>&1)
+          
+          PASS=true
+          for i in 1 2 3; do
+            if echo "$LOGS" | grep -q "Trying license key ${i}/3"; then
+              echo "✅ Key ${i}/3 attempt logged"
+            else
+              echo "❌ Key ${i}/3 attempt NOT logged"
+              PASS=false
+            fi
+            
+            if echo "$LOGS" | grep -q "Key ${i} failed:"; then
+              echo "✅ Key ${i} failure with error detail logged"
+              echo "   $(echo "$LOGS" | grep "Key ${i} failed:")"
+            else
+              echo "❌ Key ${i} failure detail NOT logged"
+              PASS=false
+            fi
+          done
+          
+          # Must show the final fallback message
+          if echo "$LOGS" | grep -q "All 3 license keys failed"; then
+            echo "✅ Final fallback message logged"
+          else
+            echo "❌ Final fallback message NOT logged"
+            PASS=false
+          fi
+          
+          if [ "$PASS" = false ]; then
+            echo ""
+            echo "📋 Full container logs:"
+            echo "$LOGS"
+            exit 1
+          fi
+
+      - name: Verify multi-key container still works as free WARP
+        run: |
+          echo "🔍 Verifying container falls back to free WARP..."
+          
+          TRACE=""
+          for attempt in 1 2 3 4 5; do
+            TRACE=$(curl -x socks5h://localhost:7080 -s --max-time 15 https://cloudflare.com/cdn-cgi/trace) && break
+            sleep 5
+          done
+          
+          if echo "$TRACE" | grep -qE "warp=(on|plus)"; then
+            echo "✅ Container works as free WARP after all keys failed"
+          else
+            echo "❌ Container not working after all keys failed"
+            docker logs warp-test-multikey
+            exit 1
+          fi
+
+      - name: Cleanup multi-key test container
+        if: always()
+        run: |
+          echo "🧹 Cleaning up license test containers..."
+          docker stop warp-test-license warp-test-multikey || true
+          docker rm warp-test-license warp-test-multikey || true
+          echo "✅ Cleanup complete"
+
+      # ========================================
+      # Test License Key Fallback Order (requires WARP_LICENSE_KEY secret)
+      # ========================================
+      - name: Run container with invalid keys + valid key (fallback order)
+        if: env.WARP_TEST_LICENSE_KEY != ''
+        run: |
+          echo "🔑 Starting container with 2 invalid keys followed by a valid key..."
+          docker run -d \
+            --name warp-test-fallback \
+            -e "WARP_LICENSE_KEY=fake-key-xxx,fake-key-yyy,${WARP_TEST_LICENSE_KEY}" \
+            -p 7180:1080 \
+            ${{ env.TEST_TAG }}
+          
+          echo "✅ Container started with 3 keys (2 invalid + 1 valid)"
+
+      - name: Wait for fallback container to initialize
+        if: env.WARP_TEST_LICENSE_KEY != ''
+        run: |
+          echo "⏳ Waiting for WARP to initialize..."
+          sleep 20
+
+      - name: Verify fallback order - invalid keys fail, valid key succeeds
+        if: env.WARP_TEST_LICENSE_KEY != ''
+        run: |
+          echo "🔍 Checking fallback order in container logs..."
+          
+          LOGS=$(docker logs warp-test-fallback 2>&1)
+          PASS=true
+          
+          # Key 1 (fake) must be tried first and fail
+          if echo "$LOGS" | grep -q "Trying license key 1/3"; then
+            echo "✅ Key 1/3 attempted"
+          else
+            echo "❌ Key 1/3 not attempted"
+            PASS=false
+          fi
+          
+          if echo "$LOGS" | grep -q "Key 1 failed:"; then
+            echo "✅ Key 1 failed with error detail"
+            echo "   $(echo "$LOGS" | grep "Key 1 failed:")"
+          else
+            echo "❌ Key 1 failure not logged"
+            PASS=false
+          fi
+          
+          # Key 2 (fake) must be tried second and fail
+          if echo "$LOGS" | grep -q "Trying license key 2/3"; then
+            echo "✅ Key 2/3 attempted"
+          else
+            echo "❌ Key 2/3 not attempted"
+            PASS=false
+          fi
+          
+          if echo "$LOGS" | grep -q "Key 2 failed:"; then
+            echo "✅ Key 2 failed with error detail"
+            echo "   $(echo "$LOGS" | grep "Key 2 failed:")"
+          else
+            echo "❌ Key 2 failure not logged"
+            PASS=false
+          fi
+          
+          # Key 3 (valid) must be tried third and succeed
+          if echo "$LOGS" | grep -q "Trying license key 3/3"; then
+            echo "✅ Key 3/3 attempted"
+          else
+            echo "❌ Key 3/3 not attempted"
+            PASS=false
+          fi
+          
+          if echo "$LOGS" | grep -q "license registered (key 3)"; then
+            echo "✅ Key 3 succeeded — license applied!"
+          else
+            echo "❌ Key 3 did not succeed"
+            PASS=false
+          fi
+          
+          # Must NOT show "All 3 license keys failed" (since key 3 worked)
+          if echo "$LOGS" | grep -q "All 3 license keys failed"; then
+            echo "❌ Fallback reported all keys failed (key 3 should have worked)"
+            PASS=false
+          else
+            echo "✅ No false 'all keys failed' message"
+          fi
+          
+          if [ "$PASS" = false ]; then
+            echo ""
+            echo "📋 Full container logs:"
+            echo "$LOGS"
+            exit 1
+          fi
+
+      - name: Verify WARP+ is active (not just free WARP)
+        if: env.WARP_TEST_LICENSE_KEY != ''
+        run: |
+          echo "🔍 Checking WARP+ status after successful license fallback..."
+          
+          TRACE=""
+          for attempt in 1 2 3 4 5; do
+            TRACE=$(curl -x socks5h://localhost:7180 -s --max-time 15 https://cloudflare.com/cdn-cgi/trace) && break
+            sleep 5
+          done
+          
+          echo "Trace output:"
+          echo "$TRACE"
+          
+          if echo "$TRACE" | grep -q "warp=plus"; then
+            echo "✅ WARP+ is active — valid key was applied via fallback!"
+          elif echo "$TRACE" | grep -q "warp=on"; then
+            echo "⚠️ WARP is active but as free (warp=on, not plus) — key may not have applied"
+          else
+            echo "❌ WARP not active at all"
+            docker logs warp-test-fallback
+            exit 1
+          fi
+
+      - name: Cleanup fallback order test container
+        if: always()
+        run: |
+          docker stop warp-test-fallback || true
+          docker rm warp-test-fallback || true
 
   push:
     needs: build-and-test

@@ -17,6 +17,23 @@ if ! [[ "$WARP_INSTANCES" =~ ^[0-9]+$ ]] || [ "$WARP_INSTANCES" -lt 1 ]; then
     exit 1
 fi
 
+# ---- Parse license key(s) — WARP_LICENSE_KEY accepts comma-separated values ----
+LICENSE_KEYS=()
+if [ -n "${WARP_LICENSE_KEY:-}" ]; then
+    IFS=',' read -ra _RAW_KEYS <<< "$WARP_LICENSE_KEY"
+    for _k in "${_RAW_KEYS[@]}"; do
+        _k=$(echo "$_k" | xargs)
+        [ -n "$_k" ] && LICENSE_KEYS+=("$_k")
+    done
+fi
+NUM_KEYS=${#LICENSE_KEYS[@]}
+
+# Reconstruct cleaned CSV for passing to instance scripts and change detection
+LICENSE_KEYS_CSV=""
+if [ "$NUM_KEYS" -gt 0 ]; then
+    LICENSE_KEYS_CSV=$(IFS=','; echo "${LICENSE_KEYS[*]}")
+fi
+
 # ==============================================================================
 # SINGLE INSTANCE MODE (default, fully backward-compatible)
 # ==============================================================================
@@ -51,12 +68,39 @@ if [ "$WARP_INSTANCES" -eq 1 ]; then
         echo "Warning: WARP daemon may not be fully ready after ${MAX_WAIT}s, continuing anyway..."
     fi
 
-    # register if needed
+    # register and apply license (tries all keys in order, stops on first success)
+    STORED_KEY_FILE="/var/lib/cloudflare-warp/.license_key"
+
+    apply_license_keys() {
+        local label=$1
+        for i in $(seq 0 $((NUM_KEYS - 1))); do
+            local key="${LICENSE_KEYS[$i]}"
+            echo "Trying license key $((i + 1))/${NUM_KEYS}..."
+            local out
+            out=$(warp-cli registration license "$key" 2>&1) && {
+                echo "Warp license ${label} (key $((i + 1)))!"
+                echo -n "$LICENSE_KEYS_CSV" | sudo tee "$STORED_KEY_FILE" > /dev/null
+                return 0
+            } || {
+                echo "Key $((i + 1)) failed: ${out}"
+            }
+        done
+        echo "All ${NUM_KEYS} license keys failed, running as free WARP"
+        return 1
+    }
+
     if [ ! -f /var/lib/cloudflare-warp/reg.json ]; then
         warp-cli registration new && echo "Warp client registered!"
-        if [ -n "$WARP_LICENSE_KEY" ]; then
-            echo "License key found, registering license..."
-            warp-cli registration license "$WARP_LICENSE_KEY" > /dev/null 2>&1 && echo "Warp license registered!" || echo "Failed to register license"
+        if [ "$NUM_KEYS" -gt 0 ]; then
+            apply_license_keys "registered" || true
+        fi
+    else
+        # Re-apply license if keys have changed since last registration
+        STORED_KEYS=""
+        [ -f "$STORED_KEY_FILE" ] && STORED_KEYS=$(sudo cat "$STORED_KEY_FILE" 2>/dev/null)
+        if [ "$NUM_KEYS" -gt 0 ] && [ "$LICENSE_KEYS_CSV" != "$STORED_KEYS" ]; then
+            echo "License key(s) changed, re-applying..."
+            apply_license_keys "updated" || true
         fi
     fi
 
@@ -156,6 +200,9 @@ fi
 echo "========================================"
 echo " Multi-Instance WARP Mode"
 echo " Instances : ${WARP_INSTANCES}"
+if [ "$NUM_KEYS" -gt 0 ]; then
+echo " License keys : ${NUM_KEYS} (auto-fallback)"
+fi
 echo " Strategy  : round-robin"
 echo "========================================"
 echo ""
@@ -310,34 +357,51 @@ INSTANCE_PIDS=()
 for i in $(seq 0 $((WARP_INSTANCES - 1))); do
     PORT=$((40000 + i))
     /start-warp-instance.sh \
-        "$i" "$PORT" "$WARP_LICENSE_KEY" "${WARP_CONNECT_TIMEOUT:-30}" &
+        "$i" "$PORT" "$LICENSE_KEYS_CSV" "${WARP_CONNECT_TIMEOUT:-30}" &
     INSTANCE_PIDS+=($!)
     sleep 2  # stagger to avoid registration races
 done
 
-# ---- verify each instance is connected to WARP ----
+# ---- verify each instance is connected to WARP (parallel) ----
 echo ""
-echo "Verifying WARP instances..."
+echo "Verifying WARP instances (parallel)..."
 READY_COUNT=0
 MAX_VERIFY_WAIT=90
+VERIFY_DIR=$(mktemp -d)
+VERIFY_PIDS=()
+
+for i in $(seq 0 $((WARP_INSTANCES - 1))); do
+    (
+        PORT=$((40000 + i))
+        WAIT=0
+        while [ "$WAIT" -lt "$MAX_VERIFY_WAIT" ]; do
+            if curl -s --connect-timeout 3 --socks5 "127.0.0.1:${PORT}" \
+                "https://cloudflare.com/cdn-cgi/trace" 2>/dev/null | grep -qE 'warp=(on|plus)'; then
+                echo "OK" > "${VERIFY_DIR}/${i}"
+                exit 0
+            fi
+            sleep 3
+            WAIT=$((WAIT + 3))
+        done
+        exit 1
+    ) &
+    VERIFY_PIDS+=($!)
+done
+
+for pid in "${VERIFY_PIDS[@]}"; do
+    wait "$pid" 2>/dev/null || true
+done
 
 for i in $(seq 0 $((WARP_INSTANCES - 1))); do
     PORT=$((40000 + i))
-    WAIT=0
-    while [ "$WAIT" -lt "$MAX_VERIFY_WAIT" ]; do
-        if curl -s --connect-timeout 3 --socks5 "127.0.0.1:${PORT}" \
-            "https://cloudflare.com/cdn-cgi/trace" 2>/dev/null | grep -qE 'warp=(on|plus)'; then
-            echo "  Instance ${i}: OK (port ${PORT})"
-            READY_COUNT=$((READY_COUNT + 1))
-            break
-        fi
-        sleep 3
-        WAIT=$((WAIT + 3))
-    done
-    if [ "$WAIT" -ge "$MAX_VERIFY_WAIT" ]; then
+    if [ -f "${VERIFY_DIR}/${i}" ]; then
+        echo "  Instance ${i}: OK (port ${PORT})"
+        READY_COUNT=$((READY_COUNT + 1))
+    else
         echo "  Instance ${i}: FAILED (port ${PORT} not responding after ${MAX_VERIFY_WAIT}s)"
     fi
 done
+rm -rf "$VERIFY_DIR"
 
 echo ""
 echo "${READY_COUNT}/${WARP_INSTANCES} WARP instances ready"

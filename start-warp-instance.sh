@@ -5,7 +5,7 @@
 # https://github.com/ErcinDedeoglu/cloudflare-warp
 #
 # Helper script: starts a single WARP instance with isolated data/IPC paths.
-# Called by entrypoint.sh as: /start-warp-instance.sh <instance> <port> <license_key> <timeout>
+# Called by entrypoint.sh as: /start-warp-instance.sh <instance> <port> <license_keys_csv> <timeout>
 #
 # Uses STATE_DIRECTORY and RUNTIME_DIRECTORY env vars (systemd convention)
 # to give each warp-svc its own data dir and IPC socket — no extra
@@ -15,8 +15,15 @@ set -e
 
 INSTANCE=${1:?"Instance number required"}
 PORT=${2:?"Port number required"}
-LICENSE_KEY=${3:-}
+LICENSE_KEYS_CSV=${3:-}
 CONNECT_TIMEOUT=${4:-30}
+
+# Parse license keys
+ALL_KEYS=()
+if [ -n "$LICENSE_KEYS_CSV" ]; then
+    IFS=',' read -ra ALL_KEYS <<< "$LICENSE_KEYS_CSV"
+fi
+NUM_KEYS=${#ALL_KEYS[@]}
 
 DATA_DIR="/data/warp-instance-${INSTANCE}"
 RUN_DIR="/run/warp-${INSTANCE}"
@@ -69,13 +76,39 @@ wcli() {
         warp-cli --accept-tos "$@"
 }
 
-# Register if needed
+# Register and apply license (tries preferred key first, falls back to others)
+STORED_KEY_FILE="${DATA_DIR}/.license_key"
+
+try_license_keys() {
+    local label=$1
+    for i in $(seq 0 $((NUM_KEYS - 1))); do
+        local key="${ALL_KEYS[$i]}"
+        echo "[Instance ${INSTANCE}] Trying license key $((i + 1))/${NUM_KEYS}..."
+        local out
+        out=$(wcli registration license "$key" 2>&1) && {
+            echo "[Instance ${INSTANCE}] License ${label} (key $((i + 1)))!"
+            echo -n "$LICENSE_KEYS_CSV" | sudo tee "$STORED_KEY_FILE" > /dev/null
+            return 0
+        } || {
+            echo "[Instance ${INSTANCE}] Key $((i + 1)) failed: ${out}"
+        }
+    done
+    echo "[Instance ${INSTANCE}] All ${NUM_KEYS} license keys failed, running as free WARP"
+    return 1
+}
+
 if [ ! -f "${DATA_DIR}/reg.json" ]; then
     wcli registration new && echo "[Instance ${INSTANCE}] Registered!"
-    if [ -n "$LICENSE_KEY" ]; then
-        wcli registration license "$LICENSE_KEY" > /dev/null 2>&1 \
-            && echo "[Instance ${INSTANCE}] License applied!" \
-            || echo "[Instance ${INSTANCE}] Failed to apply license"
+    if [ "$NUM_KEYS" -gt 0 ]; then
+        try_license_keys "applied" || true
+    fi
+else
+    # Re-apply license if keys have changed since last registration
+    STORED_KEYS=""
+    [ -f "$STORED_KEY_FILE" ] && STORED_KEYS=$(sudo cat "$STORED_KEY_FILE" 2>/dev/null)
+    if [ "$NUM_KEYS" -gt 0 ] && [ "$LICENSE_KEYS_CSV" != "$STORED_KEYS" ]; then
+        echo "[Instance ${INSTANCE}] License key(s) changed, re-applying..."
+        try_license_keys "updated" || true
     fi
 fi
 
