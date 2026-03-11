@@ -44,6 +44,9 @@ If working, you'll see `warp=on` in the output.
 |----------|-------------|---------|
 | `WARP_INSTANCES` | Number of WARP instances. Each gets a unique Cloudflare IP. Traffic is round-robined across all instances. No extra capabilities required | `1` |
 | `WARP_LICENSE_KEY` | WARP+ license key. Comma-separated for multiple keys — tries each in order, skips any that fail | - |
+| `WARP_ORG` | Zero Trust team name. Enables automatic enrollment via service token (see [Zero Trust](#zero-trust-free-warp-routing) section). Mutually exclusive with `WARP_LICENSE_KEY` | - |
+| `WARP_AUTH_CLIENT_ID` | Service token Client ID (required when `WARP_ORG` is set) | - |
+| `WARP_AUTH_CLIENT_SECRET` | Service token Client Secret (required when `WARP_ORG` is set) | - |
 | `WARP_CONNECT_TIMEOUT` | Max seconds to wait for WARP daemon | `30` |
 | `PROXY_USER` | Proxy authentication username | - |
 | `PROXY_PASS` | Proxy authentication password | - |
@@ -134,6 +137,9 @@ environment:
 
 Each instance uses ~50-100 MB RAM and starts 2 seconds apart. If an instance fails, GOST skips it after 3 failures and retries after 30s.
 
+## Zero Trust (Free WARP+ Routing)
+
+Enroll devices into Cloudflare Zero Trust using service tokens for free WARP+ equivalent routing — no browser needed. See the **[Zero Trust setup guide](docs/zero-trust.md)** for configuration and usage.
 
 ## Mobile VPN (Shadowsocks)
 
