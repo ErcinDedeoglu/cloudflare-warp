@@ -34,6 +34,53 @@ if [ "$NUM_KEYS" -gt 0 ]; then
     LICENSE_KEYS_CSV=$(IFS=','; echo "${LICENSE_KEYS[*]}")
 fi
 
+# ---- Zero Trust enrollment mode (service token auth) ----
+ZT_MODE=false
+if [ -n "${WARP_ORG:-}" ]; then
+    if [ -z "${WARP_AUTH_CLIENT_ID:-}" ] || [ -z "${WARP_AUTH_CLIENT_SECRET:-}" ]; then
+        echo "Error: WARP_ORG is set but WARP_AUTH_CLIENT_ID and/or WARP_AUTH_CLIENT_SECRET are missing."
+        echo "All three variables are required for Zero Trust enrollment."
+        exit 1
+    fi
+    if [ "$NUM_KEYS" -gt 0 ]; then
+        echo "Error: WARP_ORG and WARP_LICENSE_KEY are mutually exclusive."
+        echo "Use WARP_ORG for Zero Trust enrollment OR WARP_LICENSE_KEY for WARP+ — not both."
+        exit 1
+    fi
+    ZT_MODE=true
+fi
+
+# ---- helper: write MDM XML for Zero Trust enrollment ----
+# warp-svc reads mdm.xml from its data directory on startup and auto-enrolls
+# into the Zero Trust org using the service token — no browser required.
+# $1 = data directory, $2 = proxy port
+write_mdm_xml() {
+    local data_dir="$1"
+    local port="$2"
+    local mdm_file="${data_dir}/mdm.xml"
+    sudo tee "$mdm_file" > /dev/null <<MDMEOF
+<dict>
+  <key>organization</key>
+  <string>${WARP_ORG}</string>
+  <key>auth_client_id</key>
+  <string>${WARP_AUTH_CLIENT_ID}</string>
+  <key>auth_client_secret</key>
+  <string>${WARP_AUTH_CLIENT_SECRET}</string>
+  <key>service_mode</key>
+  <string>proxy</string>
+  <key>proxy_port</key>
+  <integer>${port}</integer>
+  <key>auto_connect</key>
+  <integer>1</integer>
+  <key>switch_locked</key>
+  <true/>
+  <key>onboarding</key>
+  <false/>
+</dict>
+MDMEOF
+    echo "MDM config written to ${mdm_file} (org: ${WARP_ORG}, port: ${port})"
+}
+
 # ==============================================================================
 # SINGLE INSTANCE MODE (default, fully backward-compatible)
 # ==============================================================================
@@ -45,6 +92,11 @@ if [ "$WARP_INSTANCES" -eq 1 ]; then
         sudo rm /run/dbus/pid
     fi
     sudo dbus-daemon --config-file=/usr/share/dbus-1/system.conf
+
+    # Write MDM config for Zero Trust (must happen before warp-svc reads data dir)
+    if [ "$ZT_MODE" = true ]; then
+        write_mdm_xml "/var/lib/cloudflare-warp" 40000
+    fi
 
     # start the daemon
     sudo warp-svc --accept-tos &
@@ -68,63 +120,71 @@ if [ "$WARP_INSTANCES" -eq 1 ]; then
         echo "Warning: WARP daemon may not be fully ready after ${MAX_WAIT}s, continuing anyway..."
     fi
 
-    # register and apply license (tries all keys in order, stops on first success)
-    STORED_KEY_FILE="/var/lib/cloudflare-warp/.license_key"
-
-    apply_license_keys() {
-        local label=$1
-        for i in $(seq 0 $((NUM_KEYS - 1))); do
-            local key="${LICENSE_KEYS[$i]}"
-            echo "Trying license key $((i + 1))/${NUM_KEYS}..."
-            local out
-            out=$(warp-cli registration license "$key" 2>&1) && {
-                echo "Warp license ${label} (key $((i + 1)))!"
-                echo -n "$LICENSE_KEYS_CSV" | sudo tee "$STORED_KEY_FILE" > /dev/null
-                return 0
-            } || {
-                echo "Key $((i + 1)) failed: ${out}"
-            }
-        done
-        echo "All ${NUM_KEYS} license keys failed, running as free WARP"
-        return 1
-    }
-
-    if [ ! -f /var/lib/cloudflare-warp/reg.json ]; then
-        REG_OK=false
-        MAX_REG_ATTEMPTS=10
-        for attempt in $(seq 1 $MAX_REG_ATTEMPTS); do
-            REG_OUT=$(warp-cli registration new 2>&1) && {
-                echo "Warp client registered!"
-                REG_OK=true
-                break
-            } || {
-                # Exponential backoff with jitter: 2^attempt + random jitter, capped at 120s
-                BACKOFF=$(( (1 << attempt) + RANDOM % (1 << attempt) ))
-                [ "$BACKOFF" -gt 120 ] && BACKOFF=120
-                echo "Registration attempt ${attempt}/${MAX_REG_ATTEMPTS} failed: ${REG_OUT} (retrying in ${BACKOFF}s)"
-                sleep "$BACKOFF"
-            }
-        done
-        if [ "$REG_OK" = false ]; then
-            echo "Warning: registration failed after ${MAX_REG_ATTEMPTS} attempts, continuing without license..."
-        fi
-        if [ "$REG_OK" = true ] && [ "$NUM_KEYS" -gt 0 ]; then
-            apply_license_keys "registered" || true
-        fi
+    if [ "$ZT_MODE" = true ]; then
+        # Zero Trust: warp-svc handles enrollment automatically via MDM config.
+        # MDM sets service_mode=proxy and proxy_port=40000; connect as safety net.
+        echo "Zero Trust mode: waiting for automatic enrollment via service token..."
+        warp-cli --accept-tos connect 2>/dev/null || true
+        echo "WARP Zero Trust proxy active on localhost:40000 (org: ${WARP_ORG})"
     else
-        # Re-apply license if keys have changed since last registration
-        STORED_KEYS=""
-        [ -f "$STORED_KEY_FILE" ] && STORED_KEYS=$(sudo cat "$STORED_KEY_FILE" 2>/dev/null)
-        if [ "$NUM_KEYS" -gt 0 ] && [ "$LICENSE_KEYS_CSV" != "$STORED_KEYS" ]; then
-            echo "License key(s) changed, re-applying..."
-            apply_license_keys "updated" || true
-        fi
-    fi
+        # register and apply license (tries all keys in order, stops on first success)
+        STORED_KEY_FILE="/var/lib/cloudflare-warp/.license_key"
 
-    # set proxy mode and connect
-    warp-cli --accept-tos mode proxy
-    warp-cli --accept-tos connect
-    echo "WARP proxy mode active on localhost:40000"
+        apply_license_keys() {
+            local label=$1
+            for i in $(seq 0 $((NUM_KEYS - 1))); do
+                local key="${LICENSE_KEYS[$i]}"
+                echo "Trying license key $((i + 1))/${NUM_KEYS}..."
+                local out
+                out=$(warp-cli registration license "$key" 2>&1) && {
+                    echo "Warp license ${label} (key $((i + 1)))!"
+                    echo -n "$LICENSE_KEYS_CSV" | sudo tee "$STORED_KEY_FILE" > /dev/null
+                    return 0
+                } || {
+                    echo "Key $((i + 1)) failed: ${out}"
+                }
+            done
+            echo "All ${NUM_KEYS} license keys failed, running as free WARP"
+            return 1
+        }
+
+        if [ ! -f /var/lib/cloudflare-warp/reg.json ]; then
+            REG_OK=false
+            MAX_REG_ATTEMPTS=10
+            for attempt in $(seq 1 $MAX_REG_ATTEMPTS); do
+                REG_OUT=$(warp-cli registration new 2>&1) && {
+                    echo "Warp client registered!"
+                    REG_OK=true
+                    break
+                } || {
+                    # Exponential backoff with jitter: 2^attempt + random jitter, capped at 120s
+                    BACKOFF=$(( (1 << attempt) + RANDOM % (1 << attempt) ))
+                    [ "$BACKOFF" -gt 120 ] && BACKOFF=120
+                    echo "Registration attempt ${attempt}/${MAX_REG_ATTEMPTS} failed: ${REG_OUT} (retrying in ${BACKOFF}s)"
+                    sleep "$BACKOFF"
+                }
+            done
+            if [ "$REG_OK" = false ]; then
+                echo "Warning: registration failed after ${MAX_REG_ATTEMPTS} attempts, continuing without license..."
+            fi
+            if [ "$REG_OK" = true ] && [ "$NUM_KEYS" -gt 0 ]; then
+                apply_license_keys "registered" || true
+            fi
+        else
+            # Re-apply license if keys have changed since last registration
+            STORED_KEYS=""
+            [ -f "$STORED_KEY_FILE" ] && STORED_KEYS=$(sudo cat "$STORED_KEY_FILE" 2>/dev/null)
+            if [ "$NUM_KEYS" -gt 0 ] && [ "$LICENSE_KEYS_CSV" != "$STORED_KEYS" ]; then
+                echo "License key(s) changed, re-applying..."
+                apply_license_keys "updated" || true
+            fi
+        fi
+
+        # set proxy mode and connect
+        warp-cli --accept-tos mode proxy
+        warp-cli --accept-tos connect
+        echo "WARP proxy mode active on localhost:40000"
+    fi
 
     # disable qlog
     warp-cli --accept-tos debug qlog disable
@@ -217,7 +277,9 @@ fi
 echo "========================================"
 echo " Multi-Instance WARP Mode"
 echo " Instances : ${WARP_INSTANCES}"
-if [ "$NUM_KEYS" -gt 0 ]; then
+if [ "$ZT_MODE" = true ]; then
+echo " Enrollment : Zero Trust (${WARP_ORG})"
+elif [ "$NUM_KEYS" -gt 0 ]; then
 echo " License keys : ${NUM_KEYS} (auto-fallback)"
 fi
 echo " Strategy  : round-robin"
@@ -459,9 +521,9 @@ echo ""
 # ---- cleanup on shutdown ----
 cleanup() {
     echo "Shutting down ${WARP_INSTANCES} WARP instances..."
-    # Deregister devices so they don't count against the WARP+ per-key limit.
-    # Without this, each container recreation would leave orphaned device
-    # registrations on Cloudflare's side (they never expire automatically).
+    # Deregister devices so they don't count against the WARP+ per-key limit
+    # (or Zero Trust's 50-device limit). Without this, each container recreation
+    # would leave orphaned device registrations on Cloudflare's side.
     for i in $(seq 0 $((WARP_INSTANCES - 1))); do
         local run="/run/warp-${i}"
         local dbus="/run/dbus-${i}/system_bus_socket"
