@@ -225,25 +225,34 @@ echo "========================================"
 echo ""
 
 # ---- helper: generate GOST YAML config for round-robin ----
+# $1 = verify_dir  — directory with per-instance verification results
 generate_gost_config() {
+    local verify_dir="$1"
     local config_file="/tmp/gost-config.yaml"
     local ss_pass="${PROXY_PASS:-cloudflare-warp}"
     local ss_method="${SS_METHOD:-chacha20-ietf-poly1305}"
     local climiter_val="${PROXY_MAX_CONN:-10}"
     local rlimiter_val="${PROXY_MAX_RPS:-10}"
 
-    # --- chain node list ---
+    # --- chain node list (only verified instances) ---
     local nodes=""
+    local healthy_ports=""
     for i in $(seq 0 $((WARP_INSTANCES - 1))); do
-        local port=$((40000 + i))
-        nodes="${nodes}
+        if [ -f "${verify_dir}/${i}" ]; then
+            local port=$((40000 + i))
+            nodes="${nodes}
     - name: warp-${i}
       addr: 127.0.0.1:${port}
       connector:
         type: socks5
       dialer:
         type: tcp"
+            healthy_ports="${healthy_ports}${port}\n"
+        fi
     done
+
+    # Persist healthy ports for the healthcheck script
+    printf "%b" "$healthy_ports" > /tmp/healthy-warp-ports
 
     # --- proxy auth block (SOCKS5 / HTTP handlers) ---
     local proxy_auth=""
@@ -418,18 +427,19 @@ for i in $(seq 0 $((WARP_INSTANCES - 1))); do
         echo "  Instance ${i}: FAILED (port ${PORT} not responding after ${MAX_VERIFY_WAIT}s)"
     fi
 done
-rm -rf "$VERIFY_DIR"
 
 echo ""
 echo "${READY_COUNT}/${WARP_INSTANCES} WARP instances ready"
 
 if [ "$READY_COUNT" -eq 0 ]; then
+    rm -rf "$VERIFY_DIR"
     echo "Error: no WARP instances started successfully. Exiting."
     exit 1
 fi
 
-# ---- generate GOST config ----
-generate_gost_config
+# ---- generate GOST config (only include verified instances) ----
+generate_gost_config "$VERIFY_DIR"
+rm -rf "$VERIFY_DIR"
 
 # ---- summary ----
 echo ""
