@@ -432,6 +432,15 @@ echo ""
 # ---- cleanup on shutdown ----
 cleanup() {
     echo "Shutting down ${WARP_INSTANCES} WARP instances..."
+    # Deregister devices so they don't count against the WARP+ per-key limit.
+    # Without this, each container recreation would leave orphaned device
+    # registrations on Cloudflare's side (they never expire automatically).
+    for i in $(seq 0 $((WARP_INSTANCES - 1))); do
+        local run="/run/warp-${i}"
+        local dbus="/run/dbus-${i}/system_bus_socket"
+        sudo env RUNTIME_DIRECTORY="$run" DBUS_SYSTEM_BUS_ADDRESS="unix:path=${dbus}" \
+            warp-cli --accept-tos registration delete 2>/dev/null || true
+    done
     for pid in "${INSTANCE_PIDS[@]}"; do
         sudo kill "$pid" 2>/dev/null || true
     done
