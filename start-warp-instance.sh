@@ -81,16 +81,19 @@ STORED_KEY_FILE="${DATA_DIR}/.license_key"
 
 try_license_keys() {
     local label=$1
-    for i in $(seq 0 $((NUM_KEYS - 1))); do
-        local key="${ALL_KEYS[$i]}"
-        echo "[Instance ${INSTANCE}] Trying license key $((i + 1))/${NUM_KEYS}..."
+    # Round-robin: instance N starts at key N so devices spread evenly across keys
+    local start_idx=$((INSTANCE % NUM_KEYS))
+    for offset in $(seq 0 $((NUM_KEYS - 1))); do
+        local idx=$(( (start_idx + offset) % NUM_KEYS ))
+        local key="${ALL_KEYS[$idx]}"
+        echo "[Instance ${INSTANCE}] Trying license key $((idx + 1))/${NUM_KEYS}..."
         local out
         out=$(wcli registration license "$key" 2>&1) && {
-            echo "[Instance ${INSTANCE}] License ${label} (key $((i + 1)))!"
+            echo "[Instance ${INSTANCE}] License ${label} (key $((idx + 1)))!"
             echo -n "$LICENSE_KEYS_CSV" | sudo tee "$STORED_KEY_FILE" > /dev/null
             return 0
         } || {
-            echo "[Instance ${INSTANCE}] Key $((i + 1)) failed: ${out}"
+            echo "[Instance ${INSTANCE}] Key $((idx + 1)) failed: ${out}"
         }
     done
     echo "[Instance ${INSTANCE}] All ${NUM_KEYS} license keys failed, running as free WARP"
