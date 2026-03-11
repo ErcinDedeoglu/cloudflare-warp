@@ -90,8 +90,25 @@ if [ "$WARP_INSTANCES" -eq 1 ]; then
     }
 
     if [ ! -f /var/lib/cloudflare-warp/reg.json ]; then
-        warp-cli registration new && echo "Warp client registered!"
-        if [ "$NUM_KEYS" -gt 0 ]; then
+        REG_OK=false
+        MAX_REG_ATTEMPTS=10
+        for attempt in $(seq 1 $MAX_REG_ATTEMPTS); do
+            REG_OUT=$(warp-cli registration new 2>&1) && {
+                echo "Warp client registered!"
+                REG_OK=true
+                break
+            } || {
+                # Exponential backoff with jitter: 2^attempt + random jitter, capped at 120s
+                BACKOFF=$(( (1 << attempt) + RANDOM % (1 << attempt) ))
+                [ "$BACKOFF" -gt 120 ] && BACKOFF=120
+                echo "Registration attempt ${attempt}/${MAX_REG_ATTEMPTS} failed: ${REG_OUT} (retrying in ${BACKOFF}s)"
+                sleep "$BACKOFF"
+            }
+        done
+        if [ "$REG_OK" = false ]; then
+            echo "Warning: registration failed after ${MAX_REG_ATTEMPTS} attempts, continuing without license..."
+        fi
+        if [ "$REG_OK" = true ] && [ "$NUM_KEYS" -gt 0 ]; then
             apply_license_keys "registered" || true
         fi
     else
@@ -359,7 +376,7 @@ for i in $(seq 0 $((WARP_INSTANCES - 1))); do
     /start-warp-instance.sh \
         "$i" "$PORT" "$LICENSE_KEYS_CSV" "${WARP_CONNECT_TIMEOUT:-30}" &
     INSTANCE_PIDS+=($!)
-    sleep 5  # stagger to avoid Cloudflare API rate-limiting
+    sleep $((5 + RANDOM % 5))  # stagger with jitter (5-9s) to avoid Cloudflare API rate-limiting
 done
 
 # ---- verify each instance is connected to WARP (parallel) ----

@@ -99,15 +99,18 @@ try_license_keys() {
 
 if [ ! -f "${DATA_DIR}/reg.json" ]; then
     REG_OK=false
-    MAX_REG_ATTEMPTS=10
+    MAX_REG_ATTEMPTS=15
     for attempt in $(seq 1 $MAX_REG_ATTEMPTS); do
         REG_OUT=$(wcli registration new 2>&1) && {
             echo "[Instance ${INSTANCE}] Registered!"
             REG_OK=true
             break
         } || {
-            echo "[Instance ${INSTANCE}] Registration attempt ${attempt}/${MAX_REG_ATTEMPTS} failed: ${REG_OUT}"
-            sleep $((3 + attempt * 3))
+            # Exponential backoff with jitter: 2^attempt + random jitter, capped at 120s
+            BACKOFF=$(( (1 << attempt) + RANDOM % (1 << attempt) ))
+            [ "$BACKOFF" -gt 120 ] && BACKOFF=120
+            echo "[Instance ${INSTANCE}] Registration attempt ${attempt}/${MAX_REG_ATTEMPTS} failed: ${REG_OUT} (retrying in ${BACKOFF}s)"
+            sleep "$BACKOFF"
         }
     done
     if [ "$REG_OK" = false ]; then
