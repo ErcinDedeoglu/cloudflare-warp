@@ -25,7 +25,7 @@ if [ -n "$LICENSE_KEYS_CSV" ]; then
 fi
 NUM_KEYS=${#ALL_KEYS[@]}
 
-DATA_DIR="/data/warp-instance-${INSTANCE}"
+DATA_DIR="/var/lib/cloudflare-warp/instance-${INSTANCE}"
 RUN_DIR="/run/warp-${INSTANCE}"
 DBUS_DIR="/run/dbus-${INSTANCE}"
 DBUS_SOCK="${DBUS_DIR}/system_bus_socket"
