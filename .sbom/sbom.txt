@@ -37,7 +37,7 @@ gzip                     1.12-1ubuntu3.1                    deb
 hostname                 3.23+nmu2ubuntu2                   deb     
 init-system-helpers      1.66ubuntu1                        deb     
 iproute2                 6.1.0-1ubuntu6.2                   deb     
-jq                       1.7.1-3ubuntu0.24.04.1             deb     
+jq                       1.7.1-3ubuntu0.24.04.2             deb     
 keyboxd                  2.4.4-2ubuntu17.4                  deb     
 libacl1                  2.3.2-1build1.1                    deb     
 libapparmor1             4.0.1really4.0.1-0ubuntu0.24.04.6  deb     
@@ -79,7 +79,7 @@ libhogweed6t64           3.9.1-2.2build1.1                  deb
 libibverbs1              50.0-2ubuntu0.2                    deb     
 libidn2-0                2.3.7-2build1.1                    deb     
 libjansson4              2.14-2build2                       deb     
-libjq1                   1.7.1-3ubuntu0.24.04.1             deb     
+libjq1                   1.7.1-3ubuntu0.24.04.2             deb     
 libk5crypto3             1.20.1-6ubuntu2.6                  deb     
 libkeyutils1             1.6.3-3build1                      deb     
 libkrb5-3                1.20.1-6ubuntu2.6                  deb     
