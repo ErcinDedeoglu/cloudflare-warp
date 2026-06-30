@@ -9,7 +9,7 @@ bash                            5.2.21-2ubuntu4                           deb
 bsdutils                        1:2.39.3-9ubuntu6.5                       deb     
 bubblewrap                      0.9.0-1ubuntu0.1                          deb     
 ca-certificates                 20260601~24.04.1                          deb     
-cloudflare-warp                 2026.4.1390.0                             deb     
+cloudflare-warp                 2026.6.822.0                              deb     
 coreutils                       9.4-3ubuntu6.2                            deb     
 curl                            8.5.0-2ubuntu10.9                         deb     
 dash                            0.5.12-6ubuntu5                           deb     
@@ -208,8 +208,8 @@ libnl-3-200                     3.7.0-0.3build1.1                         deb
 libnl-route-3-200               3.7.0-0.3build1.1                         deb     
 libnpth0t64                     1.6-3.1build1                             deb     
 libnspr4                        2:4.35-1.1build1                          deb     
-libnss3                         2:3.98-1ubuntu0.1                         deb     
-libnss3-tools                   2:3.98-1ubuntu0.1                         deb     
+libnss3                         2:3.98-1ubuntu0.2                         deb     
+libnss3-tools                   2:3.98-1ubuntu0.2                         deb     
 libogg0                         1.3.5-3build1                             deb     
 libonig5                        6.9.9-1build1                             deb     
 libopus0                        1.4-1build1                               deb     
@@ -254,7 +254,7 @@ libsndfile1                     1.2.2-1ubuntu5.24.04.1                    deb
 libsoup-3.0-0                   3.4.4-5ubuntu0.7                          deb     
 libsoup-3.0-common              3.4.4-5ubuntu0.7                          deb     
 libspeex1                       1.2.1-2ubuntu2.24.04.1                    deb     
-libsqlite3-0                    3.45.1-1ubuntu2.5                         deb     
+libsqlite3-0                    3.45.1-1ubuntu2.6                         deb     
 libss2                          1.47.0-2.4~exp1ubuntu4.1                  deb     
 libssh-4                        0.10.6-2ubuntu0.4                         deb     
 libssl3t64                      3.0.13-0ubuntu3.11                        deb     
@@ -272,6 +272,16 @@ libthai0                        0.1.29-2build1                            deb
 libtheora0                      1.1.1+dfsg.1-16.1build3                   deb     
 libtiff6                        4.5.1+git230720-4ubuntu2.5                deb     
 libtinfo6                       6.4+20240113-1ubuntu2                     deb     
+libtss2-esys-3.0.2-0t64         4.0.1-7.1ubuntu5.1                        deb     
+libtss2-mu-4.0.1-0t64           4.0.1-7.1ubuntu5.1                        deb     
+libtss2-sys1t64                 4.0.1-7.1ubuntu5.1                        deb     
+libtss2-tcti-cmd0t64            4.0.1-7.1ubuntu5.1                        deb     
+libtss2-tcti-device0t64         4.0.1-7.1ubuntu5.1                        deb     
+libtss2-tcti-libtpms0t64        4.0.1-7.1ubuntu5.1                        deb     
+libtss2-tcti-mssim0t64          4.0.1-7.1ubuntu5.1                        deb     
+libtss2-tcti-spi-helper0t64     4.0.1-7.1ubuntu5.1                        deb     
+libtss2-tcti-swtpm0t64          4.0.1-7.1ubuntu5.1                        deb     
+libtss2-tctildr0t64             4.0.1-7.1ubuntu5.1                        deb     
 libtwolame0                     0.4.0-2build3                             deb     
 libudev1                        255.4-1ubuntu8.15                         deb     
 libudev1                        255.4-1ubuntu8.16                         deb     
@@ -353,8 +363,10 @@ systemd-sysv                    255.4-1ubuntu8.16                         deb
 sysvinit-utils                  3.08-6ubuntu3                             deb     
 tar                             1.35+dfsg-3build1                         deb     
 tar                             1.35+dfsg-3ubuntu0.1                      deb     
+tpm-udev                        0.6ubuntu1                                deb     
 ubuntu-keyring                  2023.11.28.1                              deb     
 ubuntu-mono                     24.04-0ubuntu1                            deb     
+udev                            255.4-1ubuntu8.16                         deb     
 unminimize                      0.2.1                                     deb     
 util-linux                      2.39.3-9ubuntu6.5                         deb     
 x11-common                      1:7.7+23ubuntu3                           deb     
