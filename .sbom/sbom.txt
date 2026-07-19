@@ -361,7 +361,7 @@ systemd-dev                     255.4-1ubuntu8.16                         deb
 systemd-sysv                    255.4-1ubuntu8.16                         deb     
 sysvinit-utils                  3.08-6ubuntu3                             deb     
 tar                             1.35+dfsg-3build1                         deb     
-tar                             1.35+dfsg-3ubuntu0.2                      deb     
+tar                             1.35+dfsg-3ubuntu0.3                      deb     
 tpm-udev                        0.6ubuntu1                                deb     
 ubuntu-keyring                  2023.11.28.1                              deb     
 ubuntu-mono                     24.04-0ubuntu1                            deb     
