@@ -50,7 +50,7 @@ gpgv                            2.4.4-2ubuntu17.4                         deb
 grep                            3.11-4build1                              deb     
 gsettings-desktop-schemas       46.1-0ubuntu1                             deb     
 gstreamer1.0-plugins-base       1.24.2-1ubuntu0.4                         deb     
-gstreamer1.0-plugins-good       1.24.2-1ubuntu1.4                         deb     
+gstreamer1.0-plugins-good       1.24.2-1ubuntu1.5                         deb     
 gtk-update-icon-cache           3.24.41-4ubuntu1.3                        deb     
 gzip                            1.12-1ubuntu3.1                           deb     
 gzip                            1.12-1ubuntu3.2                           deb     
@@ -154,10 +154,10 @@ libgnutls30t64                  3.8.3-1.1ubuntu3.6                        deb
 libgpg-error0                   1.47-3build2.1                            deb     
 libgpm2                         1.20.7-11                                 deb     
 libgraphite2-3                  1.3.14-2ubuntu0.24.04.1                   deb     
-libgssapi-krb5-2                1.20.1-6ubuntu2.6                         deb     
+libgssapi-krb5-2                1.20.1-6ubuntu2.7                         deb     
 libgstreamer-gl1.0-0            1.24.2-1ubuntu0.4                         deb     
 libgstreamer-plugins-base1.0-0  1.24.2-1ubuntu0.4                         deb     
-libgstreamer-plugins-good1.0-0  1.24.2-1ubuntu1.4                         deb     
+libgstreamer-plugins-good1.0-0  1.24.2-1ubuntu1.5                         deb     
 libgstreamer1.0-0               1.24.2-1ubuntu0.1                         deb     
 libgtk-3-0t64                   3.24.41-4ubuntu1.3                        deb     
 libgtk-3-common                 3.24.41-4ubuntu1.3                        deb     
@@ -178,11 +178,11 @@ libjpeg-turbo8                  2.1.5-2ubuntu2                            deb
 libjpeg8                        8c-2ubuntu11                              deb     
 libjq1                          1.7.1-3ubuntu0.24.04.2                    deb     
 libjson-c5                      0.17-1build1                              deb     
-libk5crypto3                    1.20.1-6ubuntu2.6                         deb     
+libk5crypto3                    1.20.1-6ubuntu2.7                         deb     
 libkeyutils1                    1.6.3-3build1                             deb     
 libkmod2                        31+20240202-2ubuntu7.2                    deb     
-libkrb5-3                       1.20.1-6ubuntu2.6                         deb     
-libkrb5support0                 1.20.1-6ubuntu2.6                         deb     
+libkrb5-3                       1.20.1-6ubuntu2.7                         deb     
+libkrb5support0                 1.20.1-6ubuntu2.7                         deb     
 libksba8                        1.6.6-1build1                             deb     
 liblcms2-2                      2.14-2ubuntu0.1                           deb     
 libldap2                        2.6.10+dfsg-0ubuntu0.24.04.1              deb     
@@ -361,7 +361,7 @@ systemd-dev                     255.4-1ubuntu8.16                         deb
 systemd-sysv                    255.4-1ubuntu8.16                         deb     
 sysvinit-utils                  3.08-6ubuntu3                             deb     
 tar                             1.35+dfsg-3build1                         deb     
-tar                             1.35+dfsg-3ubuntu0.3                      deb     
+tar                             1.35+dfsg-3ubuntu0.4                      deb     
 tpm-udev                        0.6ubuntu1                                deb     
 ubuntu-keyring                  2023.11.28.1                              deb     
 ubuntu-mono                     24.04-0ubuntu1                            deb     
