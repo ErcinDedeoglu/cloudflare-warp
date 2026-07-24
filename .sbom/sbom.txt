@@ -215,10 +215,14 @@ libopus0                        1.4-1build1                               deb
 liborc-0.4-0t64                 1:0.4.38-1ubuntu0.1                       deb     
 libp11-kit0                     0.25.3-4ubuntu2.1                         deb     
 libpam-modules                  1.5.3-5ubuntu5.5                          deb     
+libpam-modules                  1.5.3-5ubuntu5.6                          deb     
 libpam-modules-bin              1.5.3-5ubuntu5.5                          deb     
+libpam-modules-bin              1.5.3-5ubuntu5.6                          deb     
 libpam-runtime                  1.5.3-5ubuntu5.5                          deb     
+libpam-runtime                  1.5.3-5ubuntu5.6                          deb     
 libpam-systemd                  255.4-1ubuntu8.16                         deb     
 libpam0g                        1.5.3-5ubuntu5.5                          deb     
+libpam0g                        1.5.3-5ubuntu5.6                          deb     
 libpango-1.0-0                  1.52.1+ds-1build1                         deb     
 libpangocairo-1.0-0             1.52.1+ds-1build1                         deb     
 libpangoft2-1.0-0               1.52.1+ds-1build1                         deb     
