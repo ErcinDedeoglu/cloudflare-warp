@@ -254,11 +254,9 @@ libspeex1                       1.2.1-2ubuntu2.24.04.1                    deb
 libsqlite3-0                    3.45.1-1ubuntu2.7                         deb     
 libss2                          1.47.0-2.4~exp1ubuntu4.1                  deb     
 libssh-4                        0.10.6-2ubuntu0.4                         deb     
-libssl3t64                      3.0.13-0ubuntu3.11                        deb     
 libssl3t64                      3.0.13-0ubuntu3.12                        deb     
 libstdc++6                      14.2.0-4ubuntu2~24.04.1                   deb     
 libsystemd-shared               255.4-1ubuntu8.17                         deb     
-libsystemd0                     255.4-1ubuntu8.16                         deb     
 libsystemd0                     255.4-1ubuntu8.17                         deb     
 libtag1v5                       1.13.1-1build1                            deb     
 libtag1v5-vanilla               1.13.1-1build1                            deb     
@@ -280,7 +278,6 @@ libtss2-tcti-spi-helper0t64     4.0.1-7.1ubuntu5.1                        deb
 libtss2-tcti-swtpm0t64          4.0.1-7.1ubuntu5.1                        deb     
 libtss2-tctildr0t64             4.0.1-7.1ubuntu5.1                        deb     
 libtwolame0                     0.4.0-2build3                             deb     
-libudev1                        255.4-1ubuntu8.16                         deb     
 libudev1                        255.4-1ubuntu8.17                         deb     
 libunistring5                   1.1-2build1.1                             deb     
 libunwind8                      1.6.2-3build1.1                           deb     
