@@ -212,11 +212,16 @@ libonig5                        6.9.9-1build1                             deb
 libopus0                        1.4-1build1                               deb     
 liborc-0.4-0t64                 1:0.4.38-1ubuntu0.1                       deb     
 libp11-kit0                     0.25.3-4ubuntu2.1                         deb     
+libp11-kit0                     0.25.3-4ubuntu2.2                         deb     
 libpam-modules                  1.5.3-5ubuntu5.6                          deb     
+libpam-modules                  1.5.3-5ubuntu5.7                          deb     
 libpam-modules-bin              1.5.3-5ubuntu5.6                          deb     
+libpam-modules-bin              1.5.3-5ubuntu5.7                          deb     
 libpam-runtime                  1.5.3-5ubuntu5.6                          deb     
+libpam-runtime                  1.5.3-5ubuntu5.7                          deb     
 libpam-systemd                  255.4-1ubuntu8.17                         deb     
 libpam0g                        1.5.3-5ubuntu5.6                          deb     
+libpam0g                        1.5.3-5ubuntu5.7                          deb     
 libpango-1.0-0                  1.52.1+ds-1build1                         deb     
 libpangocairo-1.0-0             1.52.1+ds-1build1                         deb     
 libpangoft2-1.0-0               1.52.1+ds-1build1                         deb     
@@ -344,6 +349,7 @@ nftables                        1.0.9-1ubuntu0.1                          deb
 openssl                         3.0.13-0ubuntu3.15                        deb     
 passwd                          1:4.13+dfsg1-4ubuntu3.2                   deb     
 perl-base                       5.38.2-3.2ubuntu0.3                       deb     
+perl-base                       5.38.2-3.2ubuntu0.4                       deb     
 pinentry-curses                 1.2.1-3ubuntu5                            deb     
 procps                          2:4.0.4-4ubuntu3.2                        deb     
 procps                          2:4.0.4-4ubuntu3.3                        deb     
