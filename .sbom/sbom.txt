@@ -462,7 +462,7 @@ sensible-utils                                 0.0.22                           
 session-migration                              0.3.9build1                               deb          
 shared-mime-info                               2.4-4                                     deb          
 stdlib                                         go1.26.7                                  go-module    
-sudo                                           1.9.15p5-3ubuntu5.24.04.2                 deb          
+sudo                                           1.9.15p5-3ubuntu5.24.04.3                 deb          
 systemd                                        255.4-1ubuntu8.17                         deb          
 systemd-dev                                    255.4-1ubuntu8.17                         deb          
 systemd-sysv                                   255.4-1ubuntu8.17                         deb          
